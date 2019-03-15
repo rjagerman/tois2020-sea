@@ -10,6 +10,7 @@ joblib = "*"
 ipython = "*"
 matplotlib = "*"
 rulpy = {path = "./../rulpy"}
+sklearn = "*"
 
 [dev-packages]
 pylint = "*"
