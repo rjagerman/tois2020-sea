@@ -58,7 +58,7 @@ def main():
     #     f"--train_path {train} --test_path {test} --seed {seed} --strategy epsgreedy --lr 1e-6 --eval_scale {scale} --evaluations 5"
     # ]
 
-    with TaskExecutor(max_workers=3, memory=Memory("cache", compress=6)):
+    with TaskExecutor(max_workers=args.parallel, memory=Memory("cache", compress=6)):
         results = [run_experiment(config) for config in configs]
     
     for result, config in zip(results, configs):
