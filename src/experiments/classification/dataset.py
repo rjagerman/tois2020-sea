@@ -61,4 +61,6 @@ def load(file_path, min_size=0):
     k = np.unique(ys).shape[0]
     n = xs.shape[0]
     d = xs.shape[1]
+    xs.setflags(write=False)
+    ys.setflags(write=False)
     return ClassificationDataset(xs, ys, n, d, k)
