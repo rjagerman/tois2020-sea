@@ -126,10 +126,7 @@ async def train_model(config, indices, points, index):
 async def train_baseline(train_path, baseline_lr, baseline_fraction,
                          baseline_epochs, baseline_tau, seed):
     train = await load_data(train_path)
-    baseline_lr = 0.01
-    baseline_fraction = 0.01
-    baseline_epochs = 50
-    baseline_tau = 1.0
+    logging.info(f"Training baseline model")
     rng_seed(seed)
     baseline_size = int(baseline_fraction * train.n)
     indices = np.random.permutation(train.n)[0:baseline_size]
