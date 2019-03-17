@@ -31,8 +31,9 @@ def main():
     parser.add_argument("--tau", type=float, default=1.0)
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--cap", type=float, default=0.05)
-    parser.add_argument("--baseline_sample", type=float, default=0.01)
+    parser.add_argument("--baseline_fraction", type=float, default=0.01)
     parser.add_argument("--baseline_lr", type=float, default=0.01)
+    parser.add_argument("--baseline_tau", type=float, default=1.0)
     parser.add_argument("--baseline_epochs", type=int, default=50)
 
     with open(args.config, 'rt') as f:

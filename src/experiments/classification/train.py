@@ -64,7 +64,8 @@ async def run_experiment(config):
 @task
 async def build_policy(config):
     train = load_data(config.train_path)
-    baseline = train_baseline(config.train_path, config.seed)
+    baseline = train_baseline(config.train_path, config.baseline_lr, config.baseline_fraction,
+                              config.baseline_epochs, config.baseline_tau, config.seed)
     train, baseline = await train, await baseline
 
     return create_policy(train.d, train.k, config.strategy, config.lr, config.l2,
@@ -122,14 +123,19 @@ async def train_model(config, indices, points, index):
 
 
 @task(use_cache=True)
-async def train_baseline(train_path, seed):
+async def train_baseline(train_path, baseline_lr, baseline_fraction,
+                         baseline_epochs, baseline_tau, seed):
     train = await load_data(train_path)
+    baseline_lr = 0.01
+    baseline_fraction = 0.01
+    baseline_epochs = 50
+    baseline_tau = 1.0
     rng_seed(seed)
-    baseline_size = int(0.01 * train.n)
+    baseline_size = int(baseline_fraction * train.n)
     indices = np.random.permutation(train.n)[0:baseline_size]
-    policy = create_policy(train.d, train.k, 'boltzmann', tau=1.0)
+    policy = create_policy(train.d, train.k, 'boltzmann', tau=baseline_tau)
     model = policy.create()
-    optimize_supervised_hinge(train, indices, model, 0.01, 50)
+    optimize_supervised_hinge(train, indices, model, baseline_lr, baseline_epochs)
     return model
 
 
