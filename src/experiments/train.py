@@ -23,7 +23,7 @@ def main():
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--iterations", type=int, default=100000)
     parser.add_argument("--evaluations", type=int, default=50)
-    parser.add_argument("--eval_scale", choices=('lin', 'log'))
+    parser.add_argument("--eval_scale", choices=('lin', 'log'), default='lin')
     parser.add_argument("--strategy", type=str, default='epsgreedy')
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--l2", type=float, default=1.0)
