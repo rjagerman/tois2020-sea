@@ -121,6 +121,18 @@ async def train_model(config, indices, points, index):
     # Return the trained model
     return model
 
+@task(use_cache=True)
+async def evaluate_baseline(train_path, test_path, lr, fraction, epochs, tau,
+                            seed):
+    baseline = train_baseline(train_path, lr, fraction, epochs, tau, seed)
+    train = load_data(train_path)
+    baseline, train = await baseline, await train
+    test = await load_data(test_path, min_size=train.d)
+    policy = policy_from_model(baseline)
+    rng_seed(seed)
+    acc_policy, acc_best = evaluate(test, baseline, policy)
+    return {'policy': acc_policy, 'best': acc_best}
+
 
 @task(use_cache=True)
 async def train_baseline(train_path, baseline_lr, baseline_fraction,
