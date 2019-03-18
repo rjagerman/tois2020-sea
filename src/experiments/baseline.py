@@ -18,6 +18,7 @@ def main():
     cli_parser = ArgumentParser()
     cli_parser.add_argument("-p", "--parallel", type=int, default=1)
     cli_parser.add_argument("-c", "--conf", type=str, required=True)
+    cli_parser.add_argument("--cache", type=str, default="cache")
     args = cli_parser.parse_args()
 
     parser = ArgumentParser()
@@ -31,7 +32,7 @@ def main():
     with open(args.conf, "rt") as f:
         configs = [parser.parse_args(line.strip().split(" ")) for line in f.readlines()]
 
-    with TaskExecutor(max_workers=args.parallel, memory=Memory("cache", compress=6)):
+    with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
         results = [
             {
                 'tau': conf.tau,
