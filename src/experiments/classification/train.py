@@ -1,71 +1,98 @@
 import logging
 import numpy as np
 import numba
-import experiments.classification.dataset as dataset
-from rulpy.pipeline import task, TaskExecutor
-from rulpy.linalg import regression
+from scipy import stats as st
+from joblib.memory import Memory
+from argparse import ArgumentParser
+from experiments.classification import dataset
 from rulpy.pipeline import task, TaskExecutor
 from experiments.classification.policies import create_policy, policy_from_model
-from experiments.util import rng_seed
-from collections import namedtuple
+from experiments.classification.optimization import optimize
+from experiments.classification.evaluation import evaluate
+from experiments.classification.baseline import train_baseline
+from experiments.classification.dataset import load_train, load_test
+from experiments.util import rng_seed, get_evaluation_points
 
 
-ExperimentConfig = namedtuple('ExperimentConfig', [
-    'train_path',
-    'test_path',
-    'seed',
-    'strategy',
-    'baseline',
-    'lr',
-    'l2',
-    'eps',
-    'tau',
-    'alpha'
-])
+def main():
+    logging.basicConfig(format="[%(asctime)s] %(levelname)s %(threadName)s: %(message)s",
+                        level=logging.INFO)
+    cli_parser = ArgumentParser()
+    cli_parser.add_argument("-c", "--config", type=str, required=True)
+    cli_parser.add_argument("-d", "--dataset", type=str, required=True)
+    cli_parser.add_argument("-r", "--repeats", type=int, default=15)
+    cli_parser.add_argument("-p", "--parallel", type=int, default=1)
+    cli_parser.add_argument("--cache", type=str, default="cache")
+    args = cli_parser.parse_args()
 
+    parser = ArgumentParser()
+    parser.add_argument("--iterations", type=int, default=100000)
+    parser.add_argument("--evaluations", type=int, default=50)
+    parser.add_argument("--eval_scale", choices=('lin', 'log'), default='lin')
+    parser.add_argument("--strategy", type=str, default='epsgreedy')
+    parser.add_argument("--lr", type=float, default=0.01)
+    parser.add_argument("--l2", type=float, default=1.0)
+    parser.add_argument("--eps", type=float, default=0.1)
+    parser.add_argument("--tau", type=float, default=1.0)
+    parser.add_argument("--alpha", type=float, default=1.0)
+    parser.add_argument("--cap", type=float, default=0.05)
+    parser.add_argument("--baseline_fraction", type=float, default=0.01)
+    parser.add_argument("--baseline_lr", type=float, default=0.01)
+    parser.add_argument("--baseline_tau", type=float, default=1.0)
+    parser.add_argument("--baseline_epochs", type=int, default=50)
 
-def get_evaluation_points(iterations, evaluations, scale):
-    if scale == 'log':
-        evaluations = 1 + int(np.log10(iterations)) * int(evaluations / np.log10(iterations))
-        return np.unique(np.concatenate((np.zeros(1, dtype=np.int32), np.geomspace(1, iterations, evaluations, dtype=np.int32))))
-    elif scale == 'lin':
-        return np.concatenate((np.arange(0, iterations, iterations / evaluations, dtype=np.int32), np.array([iterations], dtype=np.int32)))
-    else:
-        return np.array([iterations], dtype=np.int32)
+    with open(args.config, 'rt') as f:
+        lines = f.readlines()
+        configs = [parser.parse_args(line.strip().split(" ")) for line in lines]
+
+    with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
+        results = [run_experiment(config, args.dataset, args.repeats) for config in configs]
+    
+    for result, config in sorted(zip(results, configs), key=lambda e: e[0].result['best']['conf'][-1][0], reverse=True):
+        best_res = f"{result.result['best']['mean'][-1]:.4f} +/- {result.result['best']['std'][-1]:.4f} => {result.result['best']['conf'][-1][0]:.4f}"
+        policy_res = f"{result.result['policy']['mean'][-1]:.4f} +/- {result.result['policy']['std'][-1]:.4f} => {result.result['policy']['conf'][-1][0]:.4f}"
+        logging.info(f"{config.strategy} ({config.lr}) = {best_res} (deterministic)   {policy_res} (policy)")
 
 
 @task(use_cache=True)
-async def run_experiment(config):
+async def run_experiment(config, dataset, repeats, seed_base=4200):
     
     # Load training data
-    train = await load_data(config.train_path)
+    train = await load_train(dataset)
 
     # points to evaluate at
     points = get_evaluation_points(config.iterations, config.evaluations,
                                    config.eval_scale)
     
-    # Seed randomness and get data indices to train on
-    rng_seed(config.seed)
-    indices = np.random.randint(0, train.n, np.max(points))
-
-    # Get results
-    results = [
-        evaluate_model(config, indices, points, index) for index in range(len(points))
-    ]
+    # Evaluate at all points and all seeds
+    results = []
+    for index in range(len(points)):
+        run = []
+        for seed in range(seed_base, seed_base + repeats):
+            prng = rng_seed(seed)
+            indices = prng.randint(0, train.n, np.max(points))
+            run.append(evaluate_model(config, dataset, indices, points, index, seed))
+        results.append(run)
+    
+    # Await results and compute mean/std/n of results
+    out = {'best': {'mean': [], 'std': [], 'conf': [], 'n': []}, 'policy': {'mean': [], 'std': [], 'conf': [], 'n': []}, 'x': points}
+    for t in ['best', 'policy']:
+        for runs in results:
+            arr = np.array([(await r)[t] for r in runs])
+            out[t]['mean'].append(np.mean(arr))
+            out[t]['std'].append(np.std(arr))
+            out[t]['conf'].append(st.t.interval(0.95, len(arr)-1, loc=np.mean(arr), scale=st.sem(arr)))
+            out[t]['n'].append(arr.shape[0])
 
     # Await for all results to compute, then return it
-    return {
-        'best': np.array([(await r)['best'] for r in results]),
-        'policy': np.array([(await r)['policy'] for r in results]),
-        'x': points
-    }
+    return out
 
 
 @task
-async def build_policy(config):
-    train = load_data(config.train_path)
-    baseline = train_baseline(config.train_path, config.baseline_lr, config.baseline_fraction,
-                              config.baseline_epochs, config.baseline_tau, config.seed)
+async def build_policy(config, dataset, seed):
+    train = load_train(dataset)
+    baseline = train_baseline(dataset, config.baseline_lr, config.baseline_fraction,
+                              config.baseline_epochs, config.baseline_tau, seed)
     train, baseline = await train, await baseline
 
     return create_policy(train.d, train.k, config.strategy, config.lr, config.l2,
@@ -73,24 +100,18 @@ async def build_policy(config):
 
 
 @task(use_cache=True)
-async def load_data(file_path, min_size=0):
-    logging.info(f"Loading data set from {file_path}")
-    return dataset.load(file_path, min_size)
-
-
-@task(use_cache=True)
-async def evaluate_model(config, indices, points, index):
+async def evaluate_model(config, dataset, indices, points, index, seed):
     # Load test data, model and test_policy
-    train = load_data(config.train_path)
-    model = train_model(config, indices, points, index)
-    policy = build_policy(config)
+    train = load_train(dataset)
+    test = load_test(dataset)
+    model = train_model(config, dataset, indices, points, index, seed)
+    policy = build_policy(config, dataset, seed)
 
     # Wait for sub tasks to finish
-    train, model, policy = await train, await model, await policy
-    test = await load_data(config.test_path, train.d)
+    train, test, model, policy = await train, await test, await model, await policy
 
     # Evaluate results with the test policy
-    rng_seed(config.seed)
+    rng_seed(seed)
     acc_policy, acc_best = evaluate(test, model, policy)
     logging.info(f"[{points[index]:7d}] {config.strategy}: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
     return {
@@ -100,98 +121,27 @@ async def evaluate_model(config, indices, points, index):
 
 
 @task(use_cache=True)
-async def train_model(config, indices, points, index):
+async def train_model(config, dataset, indices, points, index, seed):
     # Load train data
-    train = load_data(config.train_path)
-    policy = build_policy(config)
+    train = load_train(dataset)
+    policy = build_policy(config, dataset, seed)
     train, policy = await train, await policy
 
     # If we are at iteration 0, just return initialized model
     if index == 0:
         return policy.create()
     
-    model = await train_model(config, indices, points, index - 1)
+    model = await train_model(config, dataset, indices, points, index - 1, seed)
     model = policy.copy(model)
 
     # Train actual model on the data
-    rng_seed(config.seed)
+    rng_seed(seed)
     indices = indices[points[index-1]:points[index]]
     optimize(train, indices, model, policy)
 
     # Return the trained model
     return model
 
-@task(use_cache=True)
-async def evaluate_baseline(train_path, test_path, lr, fraction, epochs, tau,
-                            seed):
-    baseline = train_baseline(train_path, lr, fraction, epochs, tau, seed)
-    train = load_data(train_path)
-    baseline, train = await baseline, await train
-    test = await load_data(test_path, min_size=train.d)
-    policy = policy_from_model(baseline)
-    rng_seed(seed)
-    acc_policy, acc_best = evaluate(test, baseline, policy)
-    return {'policy': acc_policy, 'best': acc_best}
 
-
-@task(use_cache=True)
-async def train_baseline(train_path, baseline_lr, baseline_fraction,
-                         baseline_epochs, baseline_tau, seed):
-    train = await load_data(train_path)
-    logging.info(f"Training baseline model")
-    rng_seed(seed)
-    baseline_size = int(baseline_fraction * train.n)
-    indices = np.random.permutation(train.n)[0:baseline_size]
-    policy = create_policy(train.d, train.k, 'boltzmann', tau=baseline_tau)
-    model = policy.create()
-    optimize_supervised_hinge(train, indices, model, baseline_lr, baseline_epochs)
-    return model
-
-
-@numba.njit(nogil=True)
-def optimize_supervised_hinge(train, indices, model, lr, epochs):
-    w = model.w
-    for e in range(epochs):
-        np.random.shuffle(indices)
-        for i in indices:
-            grad = np.zeros((train.k, train.d))
-            x, y = dataset.get(train, i)
-            s = np.dot(w, x)
-            for j in range(train.k):
-                if j != y:
-                    if s[j] - s[y] + 1 > 0.0:
-                        grad[y, :] -= x
-                        grad[j, :] += x
-            w -= lr * grad
-
-
-@numba.njit(nogil=True)
-def optimize(train, indices, model, policy):
-    for index in indices:
-        x, y = dataset.get(train, index)
-        a = policy.draw(model, x)
-        r = reward(x, y, a)
-        policy.update(model, x, a, r)
-
-
-@numba.njit(nogil=True)
-def evaluate(test_data, model, policy):
-    cum_r_policy = 0.0
-    cum_r_best = 0.0
-    for i in range(test_data.n):
-        x, y = dataset.get(test_data, i)
-        a_policy = policy.draw(model, x)
-        a_best = policy.best(model, x)
-        r_policy = reward(x, y, a_policy)
-        r_best = reward(x, y, a_best)
-        cum_r_policy += r_policy
-        cum_r_best += r_best
-    return cum_r_policy / test_data.n, cum_r_best / test_data.n
-
-
-@numba.njit(nogil=True)
-def reward(x, y, a):
-    r = 0.0
-    if a == y:
-        r = 1.0
-    return r
+if __name__ == "__main__":
+    main()

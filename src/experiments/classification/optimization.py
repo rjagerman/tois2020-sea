@@ -1,61 +1,31 @@
-import numpy as np
 import numba
-from rulpy.linalg import regression
-from collections import namedtuple
-
-
-Optimizer = namedtuple('Optimizer',[
-    'create',
-    'update',
-    'copy'
-])
-
-
-LinearModel = namedtuple('LinearModel', [
-    'w'
-])
-
-
-def create_sgd_optimizer(d, lr=0.1):
-    def _sgd_create():
-        return LinearModel(np.zeros(d))
-    def _sgd_update(model, grad):
-        w = model.w
-        w -= lr * grad
-    return Optimizer(
-        numba.njit(nogil=True)(_sgd_create),
-        numba.njit(nogil=True)(_sgd_update),
-        _sgd_copy
-    )
-
-
-def create_analytical_optimizer(d, l2):
-    def _analytical_create():
-        return regression.ridge_regression(d, l2)
-    return Optimizer(
-        numba.njit(nogil=True)(_analytical_create),
-        _analytical_update,
-        _analytical_copy
-    )
-
-
-def create_optimizer(optimizer, d, lr=0.1, l2=1.0):
-    return {
-        'sgd': create_sgd_optimizer(d, lr),
-        'analytical': create_analytical_optimizer(d, l2)
-    }[optimizer]
+import numpy as np
+from experiments.classification import dataset
+from experiments.classification.util import reward
 
 
 @numba.njit(nogil=True)
-def _analytical_update(model, x, y):
-    regression.update(model, x, y)
+def optimize_supervised_hinge(train, indices, model, lr, epochs):
+    w = model.w
+    for e in range(epochs):
+        np.random.shuffle(indices)
+        for i in indices:
+            grad = np.zeros((train.k, train.d))
+            x, y = dataset.get(train, i)
+            s = np.dot(w, x)
+            for j in range(train.k):
+                if j != y:
+                    if s[j] - s[y] + 1 > 0.0:
+                        grad[y, :] -= x
+                        grad[j, :] += x
+            w -= lr * grad
 
 
 @numba.njit(nogil=True)
-def _sgd_copy(model):
-    return LinearModel(np.copy(model.w))
+def optimize(train, indices, model, policy):
+    for index in indices:
+        x, y = dataset.get(train, index)
+        a = policy.draw(model, x)
+        r = reward(x, y, a)
+        policy.update(model, x, a, r)
 
-
-@numba.njit(nogil=True)
-def _analytical_copy(model):
-    return regression.copy(model)

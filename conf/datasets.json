@@ -1,0 +1,14 @@
+{
+    "news20": {
+        "train": "/path/to/news20.scale.bz2",
+        "test": "/path/to/news20.t.scale.bz2"
+    },
+    "usps": {
+        "train": "/path/to/usps.bz2",
+        "test": "/path/to/usps.t.bz2"
+    },
+    "rcv1": {
+        "train": "/path/to/rcv1_train.multiclass.bz2",
+        "test": "/path/to/rcv1_test.multiclass.bz2"
+    }
+}

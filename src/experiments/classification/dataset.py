@@ -1,7 +1,14 @@
+import logging
 import numpy as np
 import numba
+import json
+from rulpy.pipeline.task_executor import task
 from sklearn.datasets import load_svmlight_file
 from collections import namedtuple
+
+
+with open("conf/datasets.json", "rt") as f:
+    dataset_paths = json.load(f)
 
 
 ClassificationDataset = namedtuple('ClassificationDataset', [
@@ -64,3 +71,16 @@ def load(file_path, min_size=0):
     xs.setflags(write=False)
     ys.setflags(write=False)
     return ClassificationDataset(xs, ys, n, d, k)
+
+
+@task(use_cache=True)
+async def load_train(dataset):
+    train_path = dataset_paths[dataset]['train']
+    return load(train_path)
+
+
+@task(use_cache=True)
+async def load_test(dataset):
+    train = await load_train(dataset)
+    test_path = dataset_paths[dataset]['test']
+    return load(test_path, min_size=train.d)
