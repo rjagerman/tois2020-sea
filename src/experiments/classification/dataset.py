@@ -76,6 +76,7 @@ def load(file_path, min_size=0):
 @task(use_cache=True)
 async def load_train(dataset):
     train_path = dataset_paths[dataset]['train']
+    logging.info(f"Loading data set from {train_path}")
     return load(train_path)
 
 
@@ -83,4 +84,5 @@ async def load_train(dataset):
 async def load_test(dataset):
     train = await load_train(dataset)
     test_path = dataset_paths[dataset]['test']
+    logging.info(f"Loading data set from {test_path}")
     return load(test_path, min_size=train.d)
