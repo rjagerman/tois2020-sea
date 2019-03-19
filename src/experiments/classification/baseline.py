@@ -76,7 +76,7 @@ async def evaluate_baseline(data, lr, fraction, epochs, tau, seed):
     baseline = deserialize_policy(baseline)
     rng_seed(seed)
     acc_policy, acc_best = evaluate(test, baseline)
-    logging.info(f"[{seed}, {lr}, {tau}] baseline: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
+    logging.info(f"[{seed}, {lr}, {tau}] evaluation baseline: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
     return {'policy': acc_policy, 'best': acc_best}
 
 
@@ -88,6 +88,7 @@ async def train_baseline(data, lr, fraction, epochs, tau, seed):
     baseline_size = int(fraction * train.n)
     prng = rng_seed(seed)
     indices = prng.permutation(train.n)[0:baseline_size]
+    logging.info(f"[{seed}, {lr}, {tau}] training baseline")
     optimize_supervised_hinge(train, indices, model, lr, epochs)
     s_model = serialize_policy(model)
     return s_model
