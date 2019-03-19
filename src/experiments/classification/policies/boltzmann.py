@@ -1,45 +1,46 @@
-import numba
 import numpy as np
-from experiments.classification.policies.util import argmax, Policy, PolicyModel, np_copy_fn, get_np_create_fn, get_np_square_loss_update_fn
-from experiments.classification.policies.greedy import action_fn as greedy_action_fn
-from rulpy.math import log_softmax, softmax, grad_softmax
+import numba
+from experiments.classification.policies.util import init_weights, argmax
+from rulpy.math import log_softmax
 
 
-@numba.njit(nogil=True)
-def _sample_boltzmann(scores):
-    # numerically stable method to quickly sample from a log-softmax
-    # distribution
-    log_p = log_softmax(scores)
-    u = np.random.uniform(0.0, 1.0, scores.shape)
-    r = np.log(-np.log(u)) - log_p
-    return argmax(-r)
-
-
-def create(config, init=None):
-    d, k, lr, tau = config.d, config.k, config.lr, config.tau
-
-    @numba.njit(nogil=True)
-    def _update_fn(model, x, a, r, weight=1.0):
-        s = np.dot(model.w, x)
-        g = grad_softmax(s / tau)
-        model.w[a, :] -= lr * x * g[a] * (1.0 - 2.0 * r) * weight
-
-    @numba.njit(nogil=True)
-    def _action_fn(model, x):
-        s = np.dot(model.w, x)
-        return _sample_boltzmann(s / tau)
-
-    @numba.njit(nogil=True)
-    def _probability_fn(model, x, a):
-        s = np.dot(model.w, x)
-        e = np.exp(s / tau)
+@numba.jitclass([
+    ('k', numba.int32),
+    ('d', numba.int32),
+    ('lr', numba.float64),
+    ('tau', numba.float64),
+    ('w', numba.float64[:,:])
+])
+class BoltzmannPolicy:
+    def __init__(self, k, d, lr, tau, w):
+        self.k = k
+        self.d = d
+        self.lr = lr
+        self.tau = tau
+        self.w = w
+    
+    def update(self, x, a, r):
+        s = np.dot(self.w[a, :], x)
+        g = grad_softmax(s / self.tau)
+        self.w[a, :] -= self.lr * x * g * (1.0 - 2.0 * r)
+    
+    def draw(self, x):
+        s = np.dot(self.w, x)
+        log_p = log_softmax(s / self.tau)
+        u = np.random.uniform(0.0, 1.0, s.shape)
+        r = np.log(-np.log(u)) - log_p
+        return argmax(-r)
+    
+    def max(self, x):
+        s = np.dot(self.w, x)
+        return argmax(s)
+    
+    def probability(self, x, a):
+        s = np.dot(self.w, x)
+        e = np.exp(s / self.tau)
         return e[a] / np.sum(e)
 
-    return Policy(
-        get_np_create_fn(config, init),
-        np_copy_fn,
-        _update_fn,
-        _action_fn,
-        greedy_action_fn,
-        _probability_fn,
-    )
+
+def boltzmann_policy(k, d, lr=0.01, tau=1.0, w=None):
+    w = init_weights(k, d, w)
+    return BoltzmannPolicy(k, d, lr, tau, w)

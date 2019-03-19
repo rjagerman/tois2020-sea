@@ -4,9 +4,9 @@ import numba
 from scipy import stats as st
 from joblib.memory import Memory
 from argparse import ArgumentParser
-from experiments.classification import dataset
 from rulpy.pipeline import task, TaskExecutor
-from experiments.classification.policies import create_policy, policy_from_model
+from experiments.classification.policies import create_policy
+from experiments.classification.policies.serialize import serialize_policy, deserialize_policy
 from experiments.classification.optimization import optimize
 from experiments.classification.evaluation import evaluate
 from experiments.classification.baseline import train_baseline
@@ -55,10 +55,10 @@ def main():
 
 
 @task(use_cache=True)
-async def run_experiment(config, dataset, repeats, seed_base=4200):
+async def run_experiment(config, data, repeats, seed_base=4200):
     
     # Load training data
-    train = await load_train(dataset)
+    train = await load_train(data)
 
     # points to evaluate at
     points = get_evaluation_points(config.iterations, config.evaluations,
@@ -71,7 +71,7 @@ async def run_experiment(config, dataset, repeats, seed_base=4200):
         for seed in range(seed_base, seed_base + repeats):
             prng = rng_seed(seed)
             indices = prng.randint(0, train.n, np.max(points))
-            run.append(evaluate_model(config, dataset, indices, points, index, seed))
+            run.append(evaluate_model(config, data, indices, points, index, seed))
         results.append(run)
     
     # Await results and compute mean/std/n of results
@@ -89,30 +89,30 @@ async def run_experiment(config, dataset, repeats, seed_base=4200):
 
 
 @task
-async def build_policy(config, dataset, seed):
-    train = load_train(dataset)
-    baseline = train_baseline(dataset, config.baseline_lr, config.baseline_fraction,
+async def build_policy(config, data, seed):
+    train = load_train(data)
+    baseline = train_baseline(data, config.baseline_lr, config.baseline_fraction,
                               config.baseline_epochs, config.baseline_tau, seed)
-    train, baseline = await train, await baseline
-
-    return create_policy(train.d, train.k, config.strategy, config.lr, config.l2,
-                         config.eps, config.tau, config.alpha, config.cap, baseline)
+    train, baseline = await train, deserialize_policy(await baseline)
+    args = {'k': train.k, 'd': train.d, 'baseline': baseline}
+    args.update(vars(config))
+    return serialize_policy(create_policy(**args))
 
 
 @task(use_cache=True)
-async def evaluate_model(config, dataset, indices, points, index, seed):
+async def evaluate_model(config, data, indices, points, index, seed):
     # Load test data, model and test_policy
-    train = load_train(dataset)
-    test = load_test(dataset)
-    model = train_model(config, dataset, indices, points, index, seed)
-    policy = build_policy(config, dataset, seed)
+    train = load_train(data)
+    test = load_test(data)
+    policy = train_model(config, data, indices, points, index, seed)
 
     # Wait for sub tasks to finish
-    train, test, model, policy = await train, await test, await model, await policy
+    train, test, policy = await train, await test, await policy
+    policy = deserialize_policy(policy)
 
     # Evaluate results with the test policy
     rng_seed(seed)
-    acc_policy, acc_best = evaluate(test, model, policy)
+    acc_policy, acc_best = evaluate(test, policy)
     logging.info(f"[{points[index]:7d}] {config.strategy}: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
     return {
         'policy': acc_policy,
@@ -121,26 +121,24 @@ async def evaluate_model(config, dataset, indices, points, index, seed):
 
 
 @task(use_cache=True)
-async def train_model(config, dataset, indices, points, index, seed):
+async def train_model(config, data, indices, points, index, seed):
     # Load train data
-    train = load_train(dataset)
-    policy = build_policy(config, dataset, seed)
-    train, policy = await train, await policy
+    train = await load_train(data)
 
     # If we are at iteration 0, just return initialized model
     if index == 0:
-        return policy.create()
+        return await build_policy(config, data, seed)
     
-    model = await train_model(config, dataset, indices, points, index - 1, seed)
-    model = policy.copy(model)
+    policy = await train_model(config, data, indices, points, index - 1, seed)
+    policy = deserialize_policy(policy)
 
     # Train actual model on the data
     rng_seed(seed)
     indices = indices[points[index-1]:points[index]]
-    optimize(train, indices, model, policy)
+    optimize(train, indices, policy)
 
     # Return the trained model
-    return model
+    return serialize_policy(policy)
 
 
 if __name__ == "__main__":

@@ -1,31 +1,50 @@
-import numba
 import numpy as np
-from experiments.classification.policies.greedy import action_fn as greedy_action, probability_fn as greedy_probability
-from experiments.classification.policies.uniform import action_fn as uniform_action, probability_fn as uniform_probability
-from experiments.classification.policies.util import Policy, PolicyModel, get_np_create_fn, get_np_square_loss_update_fn, np_copy_fn
+import numba
+from experiments.classification.policies.util import argmax, init_weights
+from experiments.classification.policies.greedy import GreedyPolicy
+from experiments.classification.policies.uniform import UniformPolicy
 
 
-def create(config, init=None):
-    eps = config.eps
-
-    @numba.njit(nogil=True)
-    def _action_fn(model, x):
-        if np.random.random() < eps:
-            return uniform_action(model, x)
+@numba.jitclass([
+    ('k', numba.int32),
+    ('d', numba.int32),
+    ('lr', numba.float64),
+    ('eps', numba.float64),
+    ('w', numba.float64[:,:])
+])
+class EpsgreedyPolicy:
+    def __init__(self, k, d, lr, eps, w):
+        self.k = k
+        self.d = d
+        self.lr = lr
+        self.eps = eps
+        self.w = w
+    
+    def update(self, x, a, r):
+        s = np.dot(self.w[a, :], x)
+        grad = x * (s - r)
+        self.w[a, :] -= self.lr * grad
+    
+    def draw(self, x):
+        if np.random.random() < self.eps:
+            return np.random.randint(self.k)
         else:
-            return greedy_action(model, x)
+            return self.max(x)
+    
+    def max(self, x):
+        s = np.dot(self.w, x)
+        return argmax(s)
+    
+    def probability(self, x, a):
+        up = 1.0 / float(self.k)
+        s = np.dot(self.w, x)
+        m = np.max(s)
+        gp = 1.0 * (s == m)
+        gp /= np.sum(gp)
+        gp = gp[a]
+        return (self.eps) * up + (1 - self.eps) * gp
 
-    @numba.njit(nogil=True)
-    def _probability_fn(model, x, a):
-        up = uniform_probability(model, x, a)
-        gp = greedy_probability(model, x, a)
-        return eps * up + (1.0 - eps) * gp
 
-    return Policy(
-        get_np_create_fn(config, init),
-        np_copy_fn,
-        get_np_square_loss_update_fn(config),
-        _action_fn,
-        greedy_action,
-        _probability_fn,
-    )
+def epsgreedy_policy(k, d, lr=0.01, eps=0.05, w=None):
+    w = init_weights(k, d, w)
+    return EpsgreedyPolicy(k, d, lr, eps, w)

@@ -22,10 +22,10 @@ def optimize_supervised_hinge(train, indices, model, lr, epochs):
 
 
 @numba.njit(nogil=True)
-def optimize(train, indices, model, policy):
+def optimize(train, indices, policy):
     for index in indices:
         x, y = dataset.get(train, index)
-        a = policy.draw(model, x)
+        a = policy.draw(x)
         r = reward(x, y, a)
-        policy.update(model, x, a, r)
+        policy.update(x, a, r)
 

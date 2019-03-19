@@ -4,7 +4,8 @@ from joblib.memory import Memory
 from scipy import stats as st
 from argparse import ArgumentParser
 from rulpy.pipeline.task_executor import task, TaskExecutor
-from experiments.classification.policies import create_policy, policy_from_model
+from experiments.classification.policies import boltzmann_policy
+from experiments.classification.policies.serialize import serialize_policy, deserialize_policy
 from experiments.classification.optimization import optimize_supervised_hinge
 from experiments.classification.dataset import load_train, load_test
 from experiments.classification.evaluation import evaluate
@@ -68,28 +69,28 @@ def main():
 
 
 @task(use_cache=True)
-async def evaluate_baseline(dataset, lr, fraction, epochs, tau, seed):
-    baseline = train_baseline(dataset, lr, fraction, epochs, tau, seed)
-    test = load_test(dataset)
+async def evaluate_baseline(data, lr, fraction, epochs, tau, seed):
+    baseline = train_baseline(data, lr, fraction, epochs, tau, seed)
+    test = load_test(data)
     baseline, test = await baseline, await test
-    policy = policy_from_model(baseline)
+    baseline = deserialize_policy(baseline)
     rng_seed(seed)
-    acc_policy, acc_best = evaluate(test, baseline, policy)
+    acc_policy, acc_best = evaluate(test, baseline)
     logging.info(f"[{seed}, {lr}, {tau}] baseline: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
     return {'policy': acc_policy, 'best': acc_best}
 
 
 @task(use_cache=True)
-async def train_baseline(dataset, lr, fraction, epochs, tau, seed):
-    train = await load_train(dataset)
+async def train_baseline(data, lr, fraction, epochs, tau, seed):
+    train = load_train(data)
+    train = await train
+    model = boltzmann_policy(train.k, train.d, lr=lr, tau=tau)
     baseline_size = int(fraction * train.n)
-    policy = create_policy(train.d, train.k, 'boltzmann', tau=tau)
-    model = policy.create()
     prng = rng_seed(seed)
     indices = prng.permutation(train.n)[0:baseline_size]
-    logging.info(f"[{seed:4d}] Training baseline ({lr}, {tau})")
     optimize_supervised_hinge(train, indices, model, lr, epochs)
-    return model
+    s_model = serialize_policy(model)
+    return s_model
 
 
 if __name__ == "__main__":
