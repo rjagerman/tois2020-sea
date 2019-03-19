@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--tau", type=float, default=1.0)
     parser.add_argument("--fraction", type=float, default=0.01)
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--epochs", type=int, default=10)
     with open(args.conf, "rt") as f:
         configs = [parser.parse_args(line.strip().split(" ")) for line in f.readlines()]
 
