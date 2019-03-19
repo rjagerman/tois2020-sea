@@ -88,7 +88,7 @@ async def train_baseline(data, lr, fraction, epochs, tau, seed):
     baseline_size = int(fraction * train.n)
     prng = rng_seed(seed)
     indices = prng.permutation(train.n)[0:baseline_size]
-    logging.info(f"[{seed}, {lr}, {tau}] training baseline")
+    logging.info(f"[{seed}, {lr}, {tau}] training baseline (size: {baseline_size})")
     optimize_supervised_hinge(train, indices, model, lr, epochs)
     s_model = serialize_policy(model)
     return s_model
