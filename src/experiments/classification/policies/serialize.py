@@ -3,6 +3,7 @@ from experiments.classification.policies.greedy import greedy_policy
 from experiments.classification.policies.uniform import uniform_policy
 from experiments.classification.policies.epsgreedy import epsgreedy_policy
 from experiments.classification.policies.ips import ips_policy
+from experiments.classification.policies.statistical import statistical_policy
 from collections import namedtuple
 import numba
 import numpy as np
@@ -13,7 +14,8 @@ _CONSTRUCTOR_MAP = {
     'GreedyPolicy': greedy_policy,
     'UniformPolicy': uniform_policy,
     'EpsgreedyPolicy': epsgreedy_policy,
-    'IPSPolicy': ips_policy
+    'IPSPolicy': ips_policy,
+    'StatisticalPolicy': statistical_policy
 }
 
 
@@ -36,6 +38,8 @@ def serialize_policy(policy):
 def deserialize_policy(data):
     args = {}
     for k, v in data.struct.items():
+        if isinstance(v, np.ndarray):
+            v = np.copy(v)
         if isinstance(v, SerializedPolicy):
             v = deserialize_policy(v)
         args[k] = v

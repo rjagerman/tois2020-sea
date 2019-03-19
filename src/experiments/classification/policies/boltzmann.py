@@ -41,6 +41,6 @@ class BoltzmannPolicy:
         return e[a] / np.sum(e)
 
 
-def boltzmann_policy(k, d, lr=0.01, tau=1.0, w=None):
+def boltzmann_policy(k, d, lr=0.01, tau=1.0, w=None, **kw_args):
     w = init_weights(k, d, w)
     return BoltzmannPolicy(k, d, lr, tau, w)

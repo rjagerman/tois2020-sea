@@ -45,6 +45,6 @@ class EpsgreedyPolicy:
         return (self.eps) * up + (1 - self.eps) * gp
 
 
-def epsgreedy_policy(k, d, lr=0.01, eps=0.05, w=None):
+def epsgreedy_policy(k, d, lr=0.01, eps=0.05, w=None, **kw_args):
     w = init_weights(k, d, w)
     return EpsgreedyPolicy(k, d, lr, eps, w)

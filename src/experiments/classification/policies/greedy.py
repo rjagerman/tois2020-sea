@@ -36,6 +36,6 @@ class GreedyPolicy:
         return p[a]
 
 
-def greedy_policy(k, d, lr=0.01, w=None):
+def greedy_policy(k, d, lr=0.01, w=None, **kw_args):
     w = init_weights(k, d, w)
     return GreedyPolicy(k, d, lr, w)

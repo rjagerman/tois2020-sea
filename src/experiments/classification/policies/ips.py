@@ -42,7 +42,7 @@ def _IPSPolicy(bl_type):
     return IPSPolicy
 
 
-def ips_policy(k, d, baseline, lr=0.01, cap=0.05, w=None):
+def ips_policy(k, d, baseline, lr=0.01, cap=0.05, w=None, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
     if bl_type not in _IPS_POLICY_TYPE_CACHE:
