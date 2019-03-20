@@ -103,7 +103,7 @@ async def build_policy(config, data, seed):
 async def evaluate_model(config, data, indices, points, index, seed):
     # Load test data, model and test_policy
     train = load_train(data)
-    test = load_test(data)
+    test = load_test(data, seed)
     policy = train_model(config, data, indices, points, index, seed)
 
     # Wait for sub tasks to finish

@@ -6,10 +6,10 @@ from rulpy.pipeline.task_executor import task
 from sklearn.datasets import load_svmlight_file
 from collections import namedtuple
 from experiments.sparse import from_scipy, mat_row
-
+from experiments.util import rng_seed
 
 with open("conf/datasets.json", "rt") as f:
-    dataset_paths = json.load(f)
+    datasets = json.load(f)
 
 
 ClassificationDataset = namedtuple('ClassificationDataset', [
@@ -59,29 +59,40 @@ def _get_many(index, xs, ys):
     return out
 
 
-def load(file_path, min_size=0):
+@task(use_cache=True)
+async def load(file_path, min_size=0, sample=1.0, seed=0):
     xs, ys = load_svmlight_file(file_path)
-    xs = from_scipy(xs, min_size) #xs.todense().A
     ys = ys.astype(np.int32)
     ys -= np.min(ys)
+    if sample < 1.0:
+        prng = rng_seed(seed)
+        indices = prng.permutation(xs.shape[0])[0:int(sample*xs.shape[0])]
+        xs = xs[indices, :]
+        ys = ys[indices]
     k = np.unique(ys).shape[0]
     n = xs.shape[0]
     d = xs.shape[1]
-    #xs.setflags(write=False)
+    xs = from_scipy(xs, min_size) #xs.todense().A
     ys.setflags(write=False)
     return ClassificationDataset(xs, ys, n, d, k)
 
 
-@task(use_cache=True)
-async def load_train(dataset):
-    train_path = dataset_paths[dataset]['train']
-    logging.info(f"Loading data set from {train_path}")
-    return load(train_path)
+@task
+async def load_train(dataset, seed=0):
+    train_path = datasets[dataset]['train']['path']
+    sample = datasets[dataset]['train']['sample']
+    if sample == 1.0:
+        seed = 0
+    logging.info(f"Loading data set from {train_path} (frac:{sample}, seed:{seed})")
+    return await load(train_path, sample=sample, seed=seed)
 
 
-@task(use_cache=True)
-async def load_test(dataset):
+@task
+async def load_test(dataset, seed=0):
     train = await load_train(dataset)
-    test_path = dataset_paths[dataset]['test']
-    logging.info(f"Loading data set from {test_path}")
-    return load(test_path, min_size=train.d)
+    test_path = datasets[dataset]['test']['path']
+    sample = datasets[dataset]['test']['sample']
+    if sample == 1.0:
+        seed = 0
+    logging.info(f"Loading data set from {test_path} (frac:{sample}, seed:{seed})")
+    return await load(test_path, min_size=train.d, sample=sample, seed=seed)

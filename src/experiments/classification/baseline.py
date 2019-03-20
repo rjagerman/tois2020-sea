@@ -71,10 +71,11 @@ def main():
 @task(use_cache=True)
 async def evaluate_baseline(data, lr, fraction, epochs, tau, seed):
     baseline = train_baseline(data, lr, fraction, epochs, tau, seed)
-    test = load_test(data)
+    test = load_test(data, seed)
     baseline, test = await baseline, await test
     baseline = deserialize_policy(baseline)
     rng_seed(seed)
+    logging.info(f"Running evaluation on test set: {test.xs.shape}, {test.n}")
     acc_policy, acc_best = evaluate(test, baseline)
     logging.info(f"[{seed}, {lr}, {tau}] evaluation baseline: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
     return {'policy': acc_policy, 'best': acc_best}
