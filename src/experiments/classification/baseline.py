@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import json
 from joblib.memory import Memory
 from scipy import stats as st
 from argparse import ArgumentParser
@@ -100,6 +101,13 @@ async def train_baseline(data, lr, fraction, epochs, tau, seed):
     optimize_supervised_hinge(train, indices, model, lr, epochs)
     s_model = serialize_policy(model)
     return s_model
+
+
+@task
+async def best_baseline(data, seed):
+    with open("conf/baselines.json", "rt") as f:
+        baselines = json.load(f)
+    return await train_baseline(data, seed=seed, **baselines[data])
 
 
 if __name__ == "__main__":

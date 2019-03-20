@@ -3,9 +3,9 @@ import numba
 from experiments.classification.policies.util import init_weights, argmax
 
 
-_IPS_POLICY_TYPE_CACHE = {}
+_SEA_POLICY_TYPE_CACHE = {}
 
-def _IPSPolicy(bl_type):
+def _SEAPolicy(bl_type):
     @numba.jitclass([
         ('k', numba.int32),
         ('d', numba.int32),
@@ -14,7 +14,7 @@ def _IPSPolicy(bl_type):
         ('baseline', bl_type),
         ('w', numba.float64[:,:])
     ])
-    class IPSPolicy:
+    class SEAPolicy:
         def __init__(self, k, d, lr, cap, baseline, w):
             self.k = k
             self.d = d
@@ -44,12 +44,12 @@ def _IPSPolicy(bl_type):
         def probability(self, x, a):
             return self.baseline.probability(x, a)
 
-    return IPSPolicy
+    return SEAPolicy
 
 
-def ips_policy(k, d, baseline, lr=0.01, cap=0.05, w=None, **kw_args):
+def sea_policy(k, d, baseline, lr=0.01, cap=0.05, w=None, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
-    if bl_type not in _IPS_POLICY_TYPE_CACHE:
-        _IPS_POLICY_TYPE_CACHE[bl_type] = _IPSPolicy(bl_type)
-    return _IPS_POLICY_TYPE_CACHE[bl_type](k, d, lr, cap, baseline, w)
+    if bl_type not in _SEA_POLICY_TYPE_CACHE:
+        _SEA_POLICY_TYPE_CACHE[bl_type] = _SEAPolicy(bl_type)
+    return _SEA_POLICY_TYPE_CACHE[bl_type](k, d, lr, cap, baseline, w)
