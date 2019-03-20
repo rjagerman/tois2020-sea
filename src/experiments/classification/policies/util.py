@@ -26,3 +26,10 @@ def init_weights(k, d, w):
         raise ValueError(f"Policy weights have incorrect shape {w.shape} != {(k, d)}")
     w = np.copy(w)
     return w
+
+
+def sparse_dot(sparse, dense):
+    pass
+
+def sparse_mul(sparse, dense):
+    pass

@@ -2,6 +2,7 @@ import numpy as np
 import numba
 from experiments.classification.policies.util import init_weights, argmax
 from rulpy.math import log_softmax
+from experiments.sparse import to_dense
 
 
 TYPE_UCB = 0
@@ -37,9 +38,10 @@ class StatisticalPolicy:
         self.draw_type = draw_type
     
     def update(self, x, a, r):
-        x2 = x.reshape((x.shape[0], 1))
+        xd = to_dense(x)[0, :]
+        x2 = xd.reshape((xd.shape[0], 1))
         self.A[a, :, :] = self.A[a, :, :] + (x2 @ x2.T)
-        self.b[a, :] = self.b[a, :] + (x * r)
+        self.b[a, :] = self.b[a, :] + (xd * r)
         num = ((self.A_inv[a, :, :] @ x2) @ x2.T) @ self.A_inv[a, :, :]
         den = ((x2.T @ self.A_inv[a, :, :]) @ x2) + 1.0
         self.A_inv[a, :, :] -= num / den
@@ -47,10 +49,11 @@ class StatisticalPolicy:
         self.recompute[a] = True
     
     def draw(self, x):
+        xd = to_dense(x)[0, :]
         if self.draw_type == TYPE_UCB:
-            return self._draw_ucb(x)
+            return self._draw_ucb(xd)
         elif self.draw_type == TYPE_THOMPSON:
-            return self._draw_thompson(x)
+            return self._draw_thompson(xd)
         else:
             raise ValueError("Unknown draw type")
         
@@ -79,13 +82,15 @@ class StatisticalPolicy:
         return argmax(s)
 
     def max(self, x):
-        return argmax(np.dot(self.w, x))
+        xd = to_dense(x)[0, :]
+        return argmax(np.dot(self.w, xd))
     
     def probability(self, x, a):
+        xd = to_dense(x)[0, :]
         if self.draw_type == TYPE_UCB:
-            return self._probability_ucb(x, a)
+            return self._probability_ucb(xd, a)
         elif self.draw_type == TYPE_THOMPSON:
-            return self._probability_thompson(x, a)
+            return self._probability_thompson(xd, a)
         else:
             raise ValueError("Unknown draw type")
     

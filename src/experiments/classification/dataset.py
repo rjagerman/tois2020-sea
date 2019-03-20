@@ -5,6 +5,7 @@ import json
 from rulpy.pipeline.task_executor import task
 from sklearn.datasets import load_svmlight_file
 from collections import namedtuple
+from experiments.sparse import from_scipy, mat_row
 
 
 with open("conf/datasets.json", "rt") as f:
@@ -37,7 +38,7 @@ def _specialized_get(index, xs, ys):
 
 @numba.njit(nogil=True)
 def _get_single(index, xs, ys):
-    x = xs[index, :]
+    x = mat_row(xs, index)
     y = ys[index]
     return (x, y)
 
@@ -60,15 +61,13 @@ def _get_many(index, xs, ys):
 
 def load(file_path, min_size=0):
     xs, ys = load_svmlight_file(file_path)
-    xs = xs.todense().A
-    if min_size != 0 and min_size > xs.shape[1]:
-        xs = np.hstack((xs, np.zeros((xs.shape[0], min_size - xs.shape[1]))))
+    xs = from_scipy(xs, min_size) #xs.todense().A
     ys = ys.astype(np.int32)
     ys -= np.min(ys)
     k = np.unique(ys).shape[0]
     n = xs.shape[0]
     d = xs.shape[1]
-    xs.setflags(write=False)
+    #xs.setflags(write=False)
     ys.setflags(write=False)
     return ClassificationDataset(xs, ys, n, d, k)
 

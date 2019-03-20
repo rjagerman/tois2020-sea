@@ -3,6 +3,7 @@ import numba
 from experiments.classification.policies.util import argmax, init_weights
 from experiments.classification.policies.greedy import GreedyPolicy
 from experiments.classification.policies.uniform import UniformPolicy
+from experiments.sparse import dot_sd_mat, dot_sd_vec
 
 
 @numba.jitclass([
@@ -21,9 +22,14 @@ class EpsgreedyPolicy:
         self.w = w
     
     def update(self, x, a, r):
-        s = np.dot(self.w[a, :], x)
-        grad = x * (s - r)
-        self.w[a, :] -= self.lr * grad
+        s = dot_sd_vec(x, self.w[a, :])[0]
+        row = 0
+        for i in range(x.nnz):
+            while x.indptr[row + 1] <= i:
+                row += 1
+            col = x.indices[i]
+            val = x.data[i]
+            self.w[a, col] -= self.lr * val * (s - r)
     
     def draw(self, x):
         if np.random.random() < self.eps:
@@ -32,12 +38,12 @@ class EpsgreedyPolicy:
             return self.max(x)
     
     def max(self, x):
-        s = np.dot(self.w, x)
+        s = dot_sd_mat(x, self.w)[0, :]
         return argmax(s)
     
     def probability(self, x, a):
+        s = dot_sd_mat(x, self.w)[0, :]
         up = 1.0 / float(self.k)
-        s = np.dot(self.w, x)
         m = np.max(s)
         gp = 1.0 * (s == m)
         gp /= np.sum(gp)

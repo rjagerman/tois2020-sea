@@ -1,7 +1,8 @@
 import numpy as np
 import numba
 from experiments.classification.policies.util import init_weights, argmax
-from rulpy.math import log_softmax
+from rulpy.math import log_softmax, grad_softmax
+from experiments.sparse import dot_sd_mat, dot_sd_vec
 
 
 @numba.jitclass([
@@ -20,23 +21,28 @@ class BoltzmannPolicy:
         self.w = w
     
     def update(self, x, a, r):
-        s = np.dot(self.w[a, :], x)
-        g = grad_softmax(s / self.tau)
-        self.w[a, :] -= self.lr * x * g * (1.0 - 2.0 * r)
+        s = dot_sd_vec(x, self.w[a, :])
+        row = 0
+        for i in range(x.nnz):
+            while x.indptr[row + 1] <= i:
+                row += 1
+            col = x.indices[i]
+            val = x.data[i]
+            self.w[a, col] -= self.lr * val * (1.0 - 2.0 * r)
     
     def draw(self, x):
-        s = np.dot(self.w, x)
+        s = dot_sd_mat(x, self.w)[0, :]
         log_p = log_softmax(s / self.tau)
         u = np.random.uniform(0.0, 1.0, s.shape)
         r = np.log(-np.log(u)) - log_p
         return argmax(-r)
     
     def max(self, x):
-        s = np.dot(self.w, x)
+        s = dot_sd_mat(x, self.w)[0, :]
         return argmax(s)
     
     def probability(self, x, a):
-        s = np.dot(self.w, x)
+        s = dot_sd_mat(x, self.w)[0, :]
         e = np.exp(s / self.tau)
         return e[a] / np.sum(e)
 

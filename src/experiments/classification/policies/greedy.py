@@ -1,6 +1,7 @@
 import numpy as np
 import numba
 from experiments.classification.policies.util import argmax, init_weights
+from experiments.sparse import dot_sd_mat, dot_sd_vec
 
 
 @numba.jitclass([
@@ -17,19 +18,24 @@ class GreedyPolicy:
         self.w = w
     
     def update(self, x, a, r):
-        s = np.dot(self.w[a, :], x)
-        grad = x * (s - r)
-        self.w[a, :] -= self.lr * grad
+        s = dot_sd_vec(x, self.w[a, :])[0]
+        row = 0
+        for i in range(x.nnz):
+            while x.indptr[row + 1] <= i:
+                row += 1
+            col = x.indices[i]
+            val = x.data[i]
+            self.w[a, col] -= self.lr * val * (s - r)
     
     def draw(self, x):
         return self.max(x)
     
     def max(self, x):
-        s = np.dot(self.w, x)
+        s = dot_sd_mat(x, self.w)[0, :]
         return argmax(s)
     
     def probability(self, x, a):
-        s = np.dot(self.w, x)
+        s = dot_sd_mat(x, self.w)[0, :]
         m = np.max(s)
         p = 1.0 * (s == m)
         p /= np.sum(p)

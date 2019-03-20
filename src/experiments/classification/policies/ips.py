@@ -25,9 +25,14 @@ def _IPSPolicy(bl_type):
         
         def update(self, x, a, r):
             ips = 1.0 / max(self.cap, self.probability(x, a))
-            s = np.dot(self.w[a, :], x)
-            g = grad_softmax(s / self.tau)
-            self.w[a, :] -= self.lr * x * g * (1.0 - 2.0 * r) * ips
+            s = dot_sd_vec(x, self.w[a, :])[0]
+            row = 0
+            for i in range(x.nnz):
+                while x.indptr[row + 1] <= i:
+                    row += 1
+                col = x.indices[i]
+                val = x.data[i]
+                self.w[a, col] -= self.lr * val * (1.0 - 2.0 * r)
         
         def draw(self, x):
             return self.baseline.draw(x)
