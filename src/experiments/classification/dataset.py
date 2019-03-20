@@ -59,9 +59,15 @@ def _get_many(index, xs, ys):
     return out
 
 
+@task
+async def load_svm_dataset(file_path):
+    logging.info(f"Loading data set from {file_path}")
+    return load_svmlight_file(file_path)
+
+
 @task(use_cache=True)
 async def load(file_path, min_size=0, sample=1.0, seed=0):
-    xs, ys = load_svmlight_file(file_path)
+    xs, ys = await load_svm_dataset(file_path)
     ys = ys.astype(np.int32)
     ys -= np.min(ys)
     if sample < 1.0:
@@ -83,7 +89,6 @@ async def load_train(dataset, seed=0):
     sample = datasets[dataset]['train']['sample']
     if sample == 1.0:
         seed = 0
-    logging.info(f"Loading data set from {train_path} (frac:{sample}, seed:{seed})")
     return await load(train_path, sample=sample, seed=seed)
 
 
@@ -94,5 +99,4 @@ async def load_test(dataset, seed=0):
     sample = datasets[dataset]['test']['sample']
     if sample == 1.0:
         seed = 0
-    logging.info(f"Loading data set from {test_path} (frac:{sample}, seed:{seed})")
     return await load(test_path, min_size=train.d, sample=sample, seed=seed)

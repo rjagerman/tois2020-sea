@@ -34,20 +34,14 @@ def main():
 
     with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
         results = [
-            {
-                'tau': conf.tau,
-                'lr': conf.lr,
-                'performance': [
-                    evaluate_baseline(args.dataset, conf.lr, conf.fraction, conf.epochs, conf.tau, seed)
-                    for seed in range(4200, 4200 + args.repeats)
-                ]
-            }
+            evaluate_config(args.dataset, conf.lr, conf.fraction, conf.epochs, conf.tau, args.repeats)
             for conf in configs
         ]
+    results = [r.result for r in results]
     
     for result in results:
-        best = np.array([run.result['best'] for run in result['performance']])
-        policy = np.array([run.result['policy'] for run in result['performance']])
+        best = np.array([run['best'] for run in result['performance']])
+        policy = np.array([run['policy'] for run in result['performance']])
         result['performance'] = {
             'best': {
                 'mean': np.mean(best),
@@ -69,19 +63,32 @@ def main():
 
 
 @task(use_cache=True)
+async def evaluate_config(data, lr, fraction, epochs, tau, repeats):
+    results = {
+        'tau': tau,
+        'lr': lr,
+        'performance': [
+            evaluate_baseline(data, lr, fraction, epochs, tau, seed)
+            for seed in range(4200, 4200 + repeats)
+        ]
+    }
+    results['performance'] = [await r for r in results['performance']]
+    return results
+
+
+@task
 async def evaluate_baseline(data, lr, fraction, epochs, tau, seed):
     baseline = train_baseline(data, lr, fraction, epochs, tau, seed)
     test = load_test(data, seed)
     baseline, test = await baseline, await test
     baseline = deserialize_policy(baseline)
     rng_seed(seed)
-    logging.info(f"Running evaluation on test set: {test.xs.shape}, {test.n}")
     acc_policy, acc_best = evaluate(test, baseline)
     logging.info(f"[{seed}, {lr}, {tau}] evaluation baseline: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
     return {'policy': acc_policy, 'best': acc_best}
 
 
-@task(use_cache=True)
+@task
 async def train_baseline(data, lr, fraction, epochs, tau, seed):
     train = load_train(data)
     train = await train
