@@ -12,7 +12,8 @@ def _SEAPolicy(bl_type):
         ('lr', numba.float64),
         ('cap', numba.float64),
         ('baseline', bl_type),
-        ('w', numba.float64[:,:])
+        ('w', numba.float64[:,:]),
+        ('', numba.float64[:,:])
     ])
     class SEAPolicy:
         def __init__(self, k, d, lr, cap, baseline, w):
@@ -25,20 +26,17 @@ def _SEAPolicy(bl_type):
         
         def update(self, x, a, r):
             ips = 1.0 / max(self.cap, self.probability(x, a))
-            s = dot_sd_vec(x, self.w[a, :])[0]
-            row = 0
+            s = x.dot(self.w[:, a])
             for i in range(x.nnz):
-                while x.indptr[row + 1] <= i:
-                    row += 1
                 col = x.indices[i]
                 val = x.data[i]
-                self.w[a, col] -= self.lr * val * (1.0 - 2.0 * r) * ips
+                self.w[col, a] -= self.lr * val * (1.0 - 2.0 * r) * ips
         
         def draw(self, x):
             return self.baseline.draw(x)
         
         def max(self, x):
-            s = np.dot(self.w, x)
+            s = x.dot(self.w)
             return argmax(s)
         
         def probability(self, x, a):
@@ -47,9 +45,37 @@ def _SEAPolicy(bl_type):
     return SEAPolicy
 
 
-def sea_policy(k, d, baseline, lr=0.01, cap=0.05, w=None, **kw_args):
+def __getstate(self):
+    return {
+        'k': self.k,
+        'd': self.d,
+        'lr': self.lr,
+        'cap': self.cap,
+        'baseline': self.baseline,
+        'w': self.w
+    }
+
+
+def __setstate(self, state):
+    self.k = state['k']
+    self.d = state['d']
+    self.lr = state['lr']
+    self.cap = state['cap']
+    self.baseline = state['baseline']
+    self.w = state['w']
+
+
+def __reduce(self):
+    return (SEAPolicy, (self.k, self.d, self.baseline), self.__getstate__())
+
+
+def SEAPolicy(k, d, baseline, lr=0.01, cap=0.05, w=None, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
     if bl_type not in _SEA_POLICY_TYPE_CACHE:
         _SEA_POLICY_TYPE_CACHE[bl_type] = _SEAPolicy(bl_type)
-    return _SEA_POLICY_TYPE_CACHE[bl_type](k, d, lr, cap, baseline, w)
+    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, lr, cap, baseline, w)
+    setattr(out.__class__, '__getstate__', __getstate)
+    setattr(out.__class__, '__setstate__', __setstate)
+    setattr(out.__class__, '__reduce__', __reduce)
+    return out

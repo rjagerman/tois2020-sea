@@ -1,19 +1,19 @@
-from experiments.classification.policies.boltzmann import boltzmann_policy
-from experiments.classification.policies.epsgreedy import epsgreedy_policy
-from experiments.classification.policies.greedy import greedy_policy
-from experiments.classification.policies.uniform import uniform_policy
-from experiments.classification.policies.ips import ips_policy
-from experiments.classification.policies.statistical import statistical_policy, TYPE_UCB as _TYPE_UCB, TYPE_THOMPSON as _TYPE_THOMPSON
+from experiments.classification.policies.boltzmann import BoltzmannPolicy
+from experiments.classification.policies.epsgreedy import EpsgreedyPolicy
+from experiments.classification.policies.greedy import GreedyPolicy
+from experiments.classification.policies.uniform import UniformPolicy
+from experiments.classification.policies.ips import IPSPolicy
+from experiments.classification.policies.statistical import StatisticalPolicy, TYPE_UCB as _TYPE_UCB, TYPE_THOMPSON as _TYPE_THOMPSON
 
 
 _STRATEGY_MAP = {
-    'boltzmann': lambda k, d, args: boltzmann_policy(k, d, args['lr'], args['tau'], args['w']),
-    'epsgreedy': lambda k, d, args: epsgreedy_policy(k, d, args['lr'], args['eps'], args['w']),
-    'greedy': lambda k, d, args: greedy_policy(k, d, args['lr'], args['w']),
-    'uniform': lambda k, d, args: uniform_policy(k, d, args['lr'], args['w']),
-    'ips': lambda k, d, args: ips_policy(k, d, args['baseline'], args['lr'], args['cap'], args['w']),
-    'ucb': lambda k, d, args: statistical_policy(k, d, args['l2'], args['alpha'], draw_type=_TYPE_UCB),
-    'thompson': lambda k, d, args: statistical_policy(k, d, args['l2'], args['alpha'], draw_type=_TYPE_THOMPSON),
+    'boltzmann': lambda k, d, args: BoltzmannPolicy(k, d, args['lr'], args['tau'], args['w']),
+    'epsgreedy': lambda k, d, args: EpsgreedyPolicy(k, d, args['lr'], args['eps'], args['w']),
+    'greedy': lambda k, d, args: GreedyPolicy(k, d, args['lr'], args['w']),
+    'uniform': lambda k, d, args: UniformPolicy(k, d, args['lr'], args['w']),
+    'ips': lambda k, d, args: IPSPolicy(k, d, args['baseline'], args['lr'], args['cap'], args['w']),
+    'ucb': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], draw_type=_TYPE_UCB),
+    'thompson': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], draw_type=_TYPE_THOMPSON)
 }
 
 def create_policy(strategy, k, d, **args):

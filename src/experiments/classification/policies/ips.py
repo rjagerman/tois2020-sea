@@ -25,20 +25,17 @@ def _IPSPolicy(bl_type):
         
         def update(self, x, a, r):
             ips = 1.0 / max(self.cap, self.probability(x, a))
-            s = dot_sd_vec(x, self.w[a, :])[0]
-            row = 0
+            s = x.dot(self.w[:, a])
             for i in range(x.nnz):
-                while x.indptr[row + 1] <= i:
-                    row += 1
                 col = x.indices[i]
                 val = x.data[i]
-                self.w[a, col] -= self.lr * val * (1.0 - 2.0 * r) * ips
+                self.w[col, a] -= self.lr * val * (s - r) * ips
         
         def draw(self, x):
             return self.baseline.draw(x)
         
         def max(self, x):
-            s = np.dot(self.w, x)
+            s = x.dot(self.w)
             return argmax(s)
         
         def probability(self, x, a):
@@ -47,9 +44,37 @@ def _IPSPolicy(bl_type):
     return IPSPolicy
 
 
-def ips_policy(k, d, baseline, lr=0.01, cap=0.05, w=None, **kw_args):
+def __getstate(self):
+    return {
+        'k': self.k,
+        'd': self.d,
+        'lr': self.lr,
+        'cap': self.cap,
+        'baseline': self.baseline,
+        'w': self.w
+    }
+
+
+def __setstate(self, state):
+    self.k = state['k']
+    self.d = state['d']
+    self.lr = state['lr']
+    self.cap = state['cap']
+    self.baseline = state['baseline']
+    self.w = state['w']
+
+
+def __reduce(self):
+    return (IPSPolicy, (self.k, self.d, self.baseline), self.__getstate__())
+
+
+def IPSPolicy(k, d, baseline, lr=0.01, cap=0.05, w=None, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
     if bl_type not in _IPS_POLICY_TYPE_CACHE:
         _IPS_POLICY_TYPE_CACHE[bl_type] = _IPSPolicy(bl_type)
-    return _IPS_POLICY_TYPE_CACHE[bl_type](k, d, lr, cap, baseline, w)
+    out = _IPS_POLICY_TYPE_CACHE[bl_type](k, d, lr, cap, baseline, w)
+    setattr(out.__class__, '__getstate__', __getstate)
+    setattr(out.__class__, '__setstate__', __setstate)
+    setattr(out.__class__, '__reduce__', __reduce)
+    return out

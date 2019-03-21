@@ -11,7 +11,6 @@ from joblib.memory import Memory
 from argparse import ArgumentParser
 from rulpy.pipeline import task, TaskExecutor
 from experiments.classification.policies import create_policy
-from experiments.classification.policies.serialize import serialize_policy, deserialize_policy
 from experiments.classification.optimization import optimize
 from experiments.classification.evaluation import evaluate
 from experiments.classification.baseline import best_baseline
@@ -32,7 +31,7 @@ def main():
     args = cli_parser.parse_args()
 
     parser = ArgumentParser()
-    parser.add_argument("--iterations", type=int, default=1000000)
+    parser.add_argument("--iterations", type=int, default=100000)
     parser.add_argument("--evaluations", type=int, default=50)
     parser.add_argument("--eval_scale", choices=('lin', 'log'), default='lin')
     parser.add_argument("--strategy", type=str, default='epsgreedy')
@@ -106,10 +105,10 @@ async def run_experiment(config, data, repeats, seed_base=4200):
 async def build_policy(config, data, seed):
     train = load_train(data)
     baseline = best_baseline(data, seed)
-    train, baseline = await train, deserialize_policy(await baseline)
+    train, baseline = await train, await baseline
     args = {'k': train.k, 'd': train.d, 'baseline': baseline}
     args.update(vars(config))
-    return serialize_policy(create_policy(**args))
+    return create_policy(**args)
 
 
 @task
@@ -121,7 +120,6 @@ async def evaluate_model(config, data, points, index, seed):
 
     # Wait for sub tasks to finish
     train, test, policy = await train, await test, await policy
-    policy = deserialize_policy(policy)
 
     # Evaluate results with the test policy
     rng_seed(seed)
@@ -143,7 +141,6 @@ async def train_model(config, data, points, index, seed):
         return await build_policy(config, data, seed)
     
     policy = await train_model(config, data, points, index - 1, seed)
-    policy = deserialize_policy(policy)
 
     # Train actual model on the data
     rng_seed(seed)
@@ -152,7 +149,7 @@ async def train_model(config, data, points, index, seed):
     optimize(train, indices, policy)
 
     # Return the trained model
-    return serialize_policy(policy)
+    return policy
 
 
 if __name__ == "__main__":

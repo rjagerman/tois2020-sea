@@ -21,15 +21,8 @@ def argmax(scores):
 
 def init_weights(k, d, w):
     if w is None:
-        w = np.zeros((k, d), dtype=np.float64)
-    if w.shape != (k, d):
+        w = np.zeros((d, k), dtype=np.float64)
+    if w.shape != (d, k):
         raise ValueError(f"Policy weights have incorrect shape {w.shape} != {(k, d)}")
     w = np.copy(w)
     return w
-
-
-def sparse_dot(sparse, dense):
-    pass
-
-def sparse_mul(sparse, dense):
-    pass

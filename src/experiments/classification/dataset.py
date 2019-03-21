@@ -4,26 +4,65 @@ import numba
 import json
 from rulpy.pipeline.task_executor import task
 from sklearn.datasets import load_svmlight_file
+from scipy.sparse import csr_matrix
 from collections import namedtuple
-from experiments.sparse import from_scipy, mat_row
+from experiments.sparse import from_scipy
 from experiments.util import rng_seed
 
 with open("conf/datasets.json", "rt") as f:
     datasets = json.load(f)
 
+_readonly_i32_1d = np.array([0], dtype=np.int32)
+_readonly_i32_1d.setflags(write=False)
+_sparse_m = numba.typeof(from_scipy(csr_matrix((0,0))))
 
-ClassificationDataset = namedtuple('ClassificationDataset', [
-    'xs',
-    'ys',
-    'n',
-    'd',
-    'k'
+@numba.jitclass([
+    ('xs', _sparse_m),
+    ('ys', numba.typeof(_readonly_i32_1d)),
+    ('n', numba.int32),
+    ('d', numba.int32),
+    ('k', numba.int32)
 ])
+class _ClassificationDataset:
+    def __init__(self, xs, ys, n, d, k):
+        self.xs = xs
+        self.ys = ys
+        self.n = n
+        self.d = d
+        self.k = k
+    
+    def get(self, index):
+        return _specialized_get(index, self.xs, self.ys)
 
 
-@numba.njit(nogil=True)
-def get(dataset, index):
-    return _specialized_get(index, dataset.xs, dataset.ys)
+def ClassificationDataset(xs, ys, n, d, k):
+    out = _ClassificationDataset(xs, ys, n, d, k)
+    setattr(out.__class__, '__getstate__', __getstate)
+    setattr(out.__class__, '__setstate__', __setstate)
+    setattr(out.__class__, '__reduce__', __reduce)
+    return out
+
+
+def __getstate(self):
+    return {
+        'xs': self.xs,
+        'ys': self.ys,
+        'n': self.n,
+        'd': self.d,
+        'k': self.k
+    }
+
+
+def __setstate(self, state):
+    self.xs = state['xs']
+    self.ys = state['ys']
+    self.n = state['n']
+    self.d = state['d']
+    self.k = state['k']
+
+
+def __reduce(self):
+    return (_ClassificationDataset, (from_scipy(csr_matrix((0,0))), np.empty(0), 0, 0, 0), self.__getstate__())
 
 
 @numba.generated_jit(nopython=True, nogil=True)
@@ -38,7 +77,7 @@ def _specialized_get(index, xs, ys):
 
 @numba.njit(nogil=True)
 def _get_single(index, xs, ys):
-    x = mat_row(xs, index)
+    x = xs.slice_row(index)
     y = ys[index]
     return (x, y)
 
@@ -66,7 +105,7 @@ async def load_svm_dataset(file_path):
 
 
 @task(use_cache=True)
-async def load(file_path, min_size=0, sample=1.0, seed=0):
+async def load(file_path, min_d=0, sample=1.0, seed=0):
     xs, ys = await load_svm_dataset(file_path)
     ys = ys.astype(np.int32)
     ys -= np.min(ys)
@@ -78,7 +117,7 @@ async def load(file_path, min_size=0, sample=1.0, seed=0):
     k = np.unique(ys).shape[0]
     n = xs.shape[0]
     d = xs.shape[1]
-    xs = from_scipy(xs, min_size) #xs.todense().A
+    xs = from_scipy(xs, min_d=min_d) #xs.todense().A
     ys.setflags(write=False)
     return ClassificationDataset(xs, ys, n, d, k)
 
@@ -99,4 +138,4 @@ async def load_test(dataset, seed=0):
     sample = datasets[dataset]['test']['sample']
     if sample == 1.0:
         seed = 0
-    return await load(test_path, min_size=train.d, sample=sample, seed=seed)
+    return await load(test_path, min_d=train.d, sample=sample, seed=seed)

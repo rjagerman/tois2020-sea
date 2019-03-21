@@ -1,7 +1,6 @@
 import numpy as np
 import numba
 from experiments.classification.policies.util import argmax, init_weights
-from experiments.sparse import dot_sd_mat, dot_sd_vec
 
 
 @numba.jitclass([
@@ -10,7 +9,7 @@ from experiments.sparse import dot_sd_mat, dot_sd_vec
     ('lr', numba.float64),
     ('w', numba.float64[:,:])
 ])
-class GreedyPolicy:
+class _GreedyPolicy:
     def __init__(self, k, d, lr, w):
         self.k = k
         self.d = d
@@ -18,30 +17,50 @@ class GreedyPolicy:
         self.w = w
     
     def update(self, x, a, r):
-        s = dot_sd_vec(x, self.w[a, :])[0]
-        row = 0
+        s = x.dot(self.w[:, a])
         for i in range(x.nnz):
-            while x.indptr[row + 1] <= i:
-                row += 1
             col = x.indices[i]
             val = x.data[i]
-            self.w[a, col] -= self.lr * val * (s - r)
+            self.w[col, a] -= self.lr * val * (s - r)
     
     def draw(self, x):
         return self.max(x)
     
     def max(self, x):
-        s = dot_sd_mat(x, self.w)[0, :]
-        return argmax(s)
+        return argmax(x.dot(self.w))
     
     def probability(self, x, a):
-        s = dot_sd_mat(x, self.w)[0, :]
+        s = x.dot(self.w)
         m = np.max(s)
         p = 1.0 * (s == m)
         p /= np.sum(p)
         return p[a]
 
 
-def greedy_policy(k, d, lr=0.01, w=None, **kw_args):
+def __getstate(self):
+    return {
+        'k': self.k,
+        'd': self.d,
+        'lr': self.lr,
+        'w': self.w
+    }
+
+
+def __setstate(self, state):
+    self.k = state['k']
+    self.d = state['d']
+    self.lr = state['lr']
+    self.w = state['w']
+
+
+def __reduce(self):
+    return (GreedyPolicy, (self.k, self.d), self.__getstate__())
+
+
+def GreedyPolicy(k, d, lr=0.01, w=None, **kw_args):
     w = init_weights(k, d, w)
-    return GreedyPolicy(k, d, lr, w)
+    out = _GreedyPolicy(k, d, lr, w)
+    setattr(out.__class__, '__getstate__', __getstate)
+    setattr(out.__class__, '__setstate__', __setstate)
+    setattr(out.__class__, '__reduce__', __reduce)
+    return out

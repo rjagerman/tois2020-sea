@@ -2,7 +2,6 @@ import numpy as np
 import numba
 from experiments.classification.policies.util import init_weights, argmax
 from rulpy.math import log_softmax
-from experiments.sparse import to_dense
 
 
 TYPE_UCB = 0
@@ -38,7 +37,7 @@ class StatisticalPolicy:
         self.draw_type = draw_type
     
     def update(self, x, a, r):
-        xd = to_dense(x)[0, :]
+        xd = x.to_dense()
         x2 = xd.reshape((xd.shape[0], 1))
         self.A[a, :, :] = self.A[a, :, :] + (x2 @ x2.T)
         self.b[a, :] = self.b[a, :] + (xd * r)
@@ -49,7 +48,7 @@ class StatisticalPolicy:
         self.recompute[a] = True
     
     def draw(self, x):
-        xd = to_dense(x)[0, :]
+        xd = x.todense()
         if self.draw_type == TYPE_UCB:
             return self._draw_ucb(xd)
         elif self.draw_type == TYPE_THOMPSON:
@@ -82,11 +81,10 @@ class StatisticalPolicy:
         return argmax(s)
 
     def max(self, x):
-        xd = to_dense(x)[0, :]
-        return argmax(np.dot(self.w, xd))
+        return argmax(x.dot(self.w))
     
     def probability(self, x, a):
-        xd = to_dense(x)[0, :]
+        xd = x.todense()
         if self.draw_type == TYPE_UCB:
             return self._probability_ucb(xd, a)
         elif self.draw_type == TYPE_THOMPSON:
@@ -105,12 +103,52 @@ class StatisticalPolicy:
         np.dot(x, self.w) + self._bound(x)
 
 
-def statistical_policy(k, d, l2=1.0, alpha=1.0, w=None, b=None, A=None, A_inv=None,
-                       cho=None, recompute=None, draw_type=TYPE_UCB, **kw_args):
-    w = np.zeros((k, d), dtype=np.float64) if w is None else w
-    b = np.zeros((k, d), dtype=np.float64) if b is None else b
+def __getstate(self):
+    return {
+        'k': self.k,
+        'd': self.d,
+        'l2': self.l2,
+        'alpha': self.alpha,
+        'tau': self.tau,
+        'w': self.w,
+        'b': self.b,
+        'A': self.A,
+        'A_inv': self.A_inv,
+        'cho': self.cho,
+        'recompute': self.recompute,
+        'draw_type': self.draw_type
+    }
+
+
+def __setstate(self, state):
+    self.k = state['k']
+    self.d = state['d']
+    self.l2 = state['l2']
+    self.alpha = state['alpha']
+    self.tau = state['tau']
+    self.w = state['w']
+    self.b = state['b']
+    self.A = state['A']
+    self.A_inv = state['A_inv']
+    self.cho = state['cho']
+    self.recompute = state['recompute']
+    self.draw_type = state['draw_type']
+
+
+def __reduce(self):
+    return (StatisticalPolicy, (self.k, self.d), self.__getstate__())
+
+
+def StatisticalPolicy(k, d, l2=1.0, alpha=1.0, w=None, b=None, A=None, A_inv=None,
+                      cho=None, recompute=None, draw_type=TYPE_UCB, **kw_args):
+    w = np.zeros((d, k), dtype=np.float64) if w is None else w
+    b = np.zeros((d, k), dtype=np.float64) if b is None else b
     A = np.stack([np.identity(d, dtype=np.float64) * l2 for _ in range(k)]) if A is None else A
     A_inv = np.stack([np.identity(d, dtype=np.float64) / l2 for _ in range(k)]) if A_inv is None else A_inv
     cho = np.stack([np.zeros((d,d), dtype=np.float64) for _ in range(k)]) if cho is None else cho
     recompute = np.zeros(k, dtype=np.bool) if recompute is None else recompute
-    return StatisticalPolicy(k, d, l2, alpha, w, b, A, A_inv, cho, recompute, draw_type)
+    out = _StatisticalPolicy(k, d, l2, alpha, w, b, A, A_inv, cho, recompute, draw_type)
+    setattr(out.__class__, '__getstate__', __getstate)
+    setattr(out.__class__, '__setstate__', __setstate)
+    setattr(out.__class__, '__reduce__', __reduce)
+    return out

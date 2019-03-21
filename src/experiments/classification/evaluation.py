@@ -9,7 +9,7 @@ def evaluate(test_data, policy):
     cum_r_policy = 0.0
     cum_r_best = 0.0
     for i in range(test_data.n):
-        x, y = dataset.get(test_data, i)
+        x, y = test_data.get(i)
         a_policy = policy.draw(x)
         a_best = policy.max(x)
         r_policy = reward(x, y, a_policy)

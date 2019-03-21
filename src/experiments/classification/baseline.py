@@ -5,8 +5,7 @@ from joblib.memory import Memory
 from scipy import stats as st
 from argparse import ArgumentParser
 from rulpy.pipeline.task_executor import task, TaskExecutor
-from experiments.classification.policies import boltzmann_policy
-from experiments.classification.policies.serialize import serialize_policy, deserialize_policy
+from experiments.classification.policies import BoltzmannPolicy
 from experiments.classification.optimization import optimize_supervised_hinge
 from experiments.classification.dataset import load_train, load_test
 from experiments.classification.evaluation import evaluate
@@ -77,30 +76,27 @@ async def evaluate_config(data, lr, fraction, epochs, tau, repeats):
     return results
 
 
-@task
+@task(use_cache=True)
 async def evaluate_baseline(data, lr, fraction, epochs, tau, seed):
     baseline = train_baseline(data, lr, fraction, epochs, tau, seed)
     test = load_test(data, seed)
     baseline, test = await baseline, await test
-    baseline = deserialize_policy(baseline)
     rng_seed(seed)
     acc_policy, acc_best = evaluate(test, baseline)
     logging.info(f"[{seed}, {lr}, {tau}] evaluation baseline: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
     return {'policy': acc_policy, 'best': acc_best}
 
 
-@task
+@task(use_cache=True)
 async def train_baseline(data, lr, fraction, epochs, tau, seed):
-    train = load_train(data)
-    train = await train
-    model = boltzmann_policy(train.k, train.d, lr=lr, tau=tau)
+    train = await load_train(data)
+    model = BoltzmannPolicy(train.k, train.d, lr=lr, tau=tau)
     baseline_size = int(fraction * train.n)
     prng = rng_seed(seed)
     indices = prng.permutation(train.n)[0:baseline_size]
     logging.info(f"[{seed}, {lr}, {tau}] training baseline (size: {baseline_size})")
     optimize_supervised_hinge(train, indices, model, lr, epochs)
-    s_model = serialize_policy(model)
-    return s_model
+    return model
 
 
 @task
