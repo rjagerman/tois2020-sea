@@ -22,7 +22,7 @@ TYPE_THOMPSON = 1
     ('recompute', numba.boolean[:]),
     ('draw_type', numba.int32)
 ])
-class StatisticalPolicy:
+class _StatisticalPolicy:
     def __init__(self, k, d, l2, alpha, w, b, A, A_inv, cho, recompute, draw_type):
         self.k = k
         self.d = d
