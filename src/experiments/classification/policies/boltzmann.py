@@ -19,7 +19,8 @@ class _BoltzmannPolicy:
         self.tau = tau
         self.w = w
     
-    def update(self, x, a, r):
+    def update(self, dataset, index, a, r):
+        x, _ = dataset.get(index)
         s = x.dot(self.w)
         g = grad_softmax(s / self.tau)
         for i in range(x.nnz):

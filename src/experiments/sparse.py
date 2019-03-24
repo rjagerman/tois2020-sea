@@ -78,7 +78,7 @@ class _SparseVector:
         return _sparse_vector_dot(self, other)
 
     def to_dense(self):
-        out = np.zeros(self.shape)
+        out = np.zeros(self.shape[0])
         for i in range(self.nnz):
             out[self.indices[i]] = self.data[i]
         return out

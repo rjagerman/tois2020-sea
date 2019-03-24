@@ -24,7 +24,8 @@ def _IPSPolicy(bl_type):
             self.baseline = baseline
             self.w = w
         
-        def update(self, x, a, r):
+        def update(self, dataset, index, a, r):
+            x, _ = dataset.get(index)
             p = max(self.cap, self.probability(x, a))
             s = x.dot(self.w)
             g = grad_softmax(s)

@@ -16,7 +16,8 @@ class _GreedyPolicy:
         self.lr = lr
         self.w = w
     
-    def update(self, x, a, r):
+    def update(self, dataset, index, a, r):
+        x, _ = dataset.get(index)
         s = x.dot(self.w[:, a])
         for i in range(x.nnz):
             col = x.indices[i]

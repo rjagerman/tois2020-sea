@@ -44,11 +44,11 @@ class _StatisticalPolicy:
         num = ((self.A_inv[a, :, :] @ x2) @ x2.T) @ self.A_inv[a, :, :]
         den = ((x2.T @ self.A_inv[a, :, :]) @ x2) + 1.0
         self.A_inv[a, :, :] -= num / den
-        self.w[a, :] = np.dot(self.A_inv[a, :, :], self.b[a, :])
+        self.w[:, a] = np.dot(self.A_inv[a, :, :], self.b[a, :])
         self.recompute[a] = True
     
     def draw(self, x):
-        xd = x.todense()
+        xd = x.to_dense()
         if self.draw_type == TYPE_UCB:
             return self._draw_ucb(xd)
         elif self.draw_type == TYPE_THOMPSON:
@@ -70,21 +70,21 @@ class _StatisticalPolicy:
                 self.recompute[i] = False
     
     def _draw_ucb(self, x):
-        return argmax(np.dot(self.w, x) + self.alpha * self._bound(x))
+        return argmax(np.dot(x, self.w) + self.alpha * self._bound(x))
 
     def _draw_thompson(self, x):
         self._update_cholesky()
         u = np.random.standard_normal(self.w.shape)
         s = np.zeros(self.k)
         for i in range(self.k):
-            s[i] = np.dot(self.w[i,:] + (self.cho[i,:,:] @ u[i,:]), x)
+            s[i] = np.dot(x, self.w[i,:] + (self.cho[i,:,:] @ u[i,:]))
         return argmax(s)
 
     def max(self, x):
         return argmax(x.dot(self.w))
     
     def probability(self, x, a):
-        xd = x.todense()
+        xd = x.to_dense()
         if self.draw_type == TYPE_UCB:
             return self._probability_ucb(xd, a)
         elif self.draw_type == TYPE_THOMPSON:
@@ -149,7 +149,7 @@ def __deepcopy(self):
 def StatisticalPolicy(k, d, l2=1.0, alpha=1.0, w=None, b=None, A=None, A_inv=None,
                       cho=None, recompute=None, draw_type=TYPE_UCB, **kw_args):
     w = np.zeros((d, k), dtype=np.float64) if w is None else w
-    b = np.zeros((d, k), dtype=np.float64) if b is None else b
+    b = np.zeros((k, d), dtype=np.float64) if b is None else b
     A = np.stack([np.identity(d, dtype=np.float64) * l2 for _ in range(k)]) if A is None else A
     A_inv = np.stack([np.identity(d, dtype=np.float64) / l2 for _ in range(k)]) if A_inv is None else A_inv
     cho = np.stack([np.zeros((d,d), dtype=np.float64) for _ in range(k)]) if cho is None else cho

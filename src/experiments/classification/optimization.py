@@ -28,4 +28,4 @@ def optimize(train, indices, policy):
         x, y = train.get(index)
         a = policy.draw(x)
         r = reward(x, y, a)
-        policy.update(x, a, r)
+        policy.update(train, index, a, r)

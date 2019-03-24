@@ -22,7 +22,7 @@ def _SEAPolicy(bl_type):
         ('w', numba.float64[:,:]),
         ('confidence', numba.float64),
         ('history', numba.types.Tuple([
-           numba.typeof(SparseVectorList((1,))),            # vectors
+           numba.typeof(GrowingArray(dtype=numba.int32)),   # vectors
            numba.typeof(GrowingArray(dtype=numba.int32)),   # actions
            numba.typeof(GrowingArray(dtype=numba.float64)), # rewards
            numba.typeof(GrowingArray(dtype=numba.float64))  # propensities
@@ -45,7 +45,8 @@ def _SEAPolicy(bl_type):
             self.lcb_w = lcb_w
             self.recompute_bounds = 0
         
-        def update(self, x, a, r):
+        def update(self, dataset, index, a, r):
+            x, _ = dataset.get(index)
             p = max(self.cap, self.probability(x, a))
             s = x.dot(self.w)
             g = grad_softmax(s)
@@ -54,15 +55,15 @@ def _SEAPolicy(bl_type):
                 val = x.data[i]
                 loss = 0.5 - r # advantage loss
                 self.w[col, a] -= self.lr * val * g[a] * loss / p
-            self._record_history(x, a, r, p)
+            self._record_history(index, a, r, p)
             self.recompute_bounds += 1
             if self.recompute_bounds >= 10000:
-                self._recompute_bounds()
+                self._recompute_bounds(dataset)
                 self._update_baseline()
                 self.recompute_bounds = 0
             
-        def _record_history(self, x, a, r, p):
-            self.history[0].append(x)
+        def _record_history(self, index, a, r, p):
+            self.history[0].append(index)
             self.history[1].append(a)
             self.history[2].append(r)
             self.history[3].append(p)
@@ -76,16 +77,17 @@ def _SEAPolicy(bl_type):
                 # and make learning of the new policy as a separate policy
                 self.baseline.w = np.copy(self.w)
 
-        def _recompute_bounds(self):
+        def _recompute_bounds(self, dataset):
             n = self.history[1].size
 
             x_new = np.zeros(n)
             x_baseline = np.zeros(n)
             for i in range(n):
-                x = self.history[0].get(i)
+                index = self.history[0].get(i)
                 a = self.history[1].get(i)
                 r = self.history[2].get(i)
                 p = self.history[3].get(i)
+                x, _ = dataset.get(index)
                 
                 s = x.dot(self.w)
                 sa = 1.0 * (argmax(s) == a)
@@ -185,7 +187,7 @@ def SEAPolicy(k, d, baseline, lr=0.01, cap=0.05, w=None, confidence=0.95, histor
     if bl_type not in _SEA_POLICY_TYPE_CACHE:
         _SEA_POLICY_TYPE_CACHE[bl_type] = _SEAPolicy(bl_type)
     history = (
-        SparseVectorList((d,)),
+        GrowingArray(dtype=numba.int32),
         GrowingArray(dtype=numba.int32),
         GrowingArray(dtype=numba.float64),
         GrowingArray(dtype=numba.float64)
