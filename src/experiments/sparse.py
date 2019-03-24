@@ -1,5 +1,6 @@
 import numpy as np
 import numba
+from rulpy.array import GrowingArray, GrowingArrayList
 
 
 @numba.jitclass([
@@ -113,4 +114,77 @@ def _sparse_vector_dot_vector(sv, other):
         d = sv.indices[i]
         for j in range(other.shape[1]):
             out[j] += other[d, j] * v
+    return out
+
+
+
+@numba.jitclass([
+    ('data', numba.typeof(GrowingArrayList(dtype=numba.float64))),
+    ('indices', numba.typeof(GrowingArrayList(dtype=numba.int32))),
+    ('nnzs', numba.typeof(GrowingArray(dtype=numba.int32))),
+    ('shape', numba.types.UniTuple(numba.int32, 1))
+])
+class _SparseVectorList:
+    def __init__(self, data, indices, nnzs, shape):
+        self.data = data
+        self.indices = indices
+        self.nnzs = nnzs
+        self.shape = shape
+
+    def append(self, sv):
+        self.shape = sv.shape
+        self.data.append(sv.data)
+        self.indices.append(sv.indices)
+        self.nnzs.append(sv.nnz)
+    
+    def get(self, index):
+        return _SparseVector(
+            self.data.get(index),
+            self.indices.get(index),
+            self.nnzs.get(index),
+            self.shape
+        )
+    
+    def clear(self):
+        self.data.clear(1)
+        self.indices.clear(1)
+        self.nnzs.clear(1)
+
+
+def __vectorlist_getstate(self):
+    return {
+        'data': self.data,
+        'indices': self.indices,
+        'nnzs': self.nnzs,
+        'shape': self.shape
+    }
+
+def __vectorlist_setstate(self, state):
+    self.data = state['data']
+    self.indices = state['indices']
+    self.nnzs = state['nnzs']
+    self.shape = state['shape']
+
+
+def __vectorlist_reduce(self):
+    return (SparseVectorList, (16, self.shape), self.__getstate__())
+
+
+def __vectorlist_deepcopy(self):
+    out = SparseVectorList(self.shape)
+    out.data = self.data.__deepcopy__()
+    out.indices = self.indices.__deepcopy__()
+    out.nnzs = self.nnzs.__deepcopy__()
+    return out
+
+
+def SparseVectorList(shape, capacity=16):
+    data = GrowingArrayList(capacity, dtype=numba.float64)
+    indices = GrowingArrayList(capacity, dtype=numba.int32)
+    nnzs = GrowingArray(capacity, dtype=numba.int32)
+    out = _SparseVectorList(data, indices, nnzs, shape)
+    setattr(out.__class__, '__getstate__', __vectorlist_getstate)
+    setattr(out.__class__, '__setstate__', __vectorlist_setstate)
+    setattr(out.__class__, '__reduce__', __vectorlist_reduce)
+    setattr(out.__class__, '__deepcopy__', __vectorlist_deepcopy)
     return out

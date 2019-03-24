@@ -139,6 +139,13 @@ def __reduce(self):
     return (StatisticalPolicy, (self.k, self.d), self.__getstate__())
 
 
+def __deepcopy(self):
+    return StatisticalPolicy(self.k, self.d, self.l2, self.alpha,
+                             np.copy(self.w), np.copy(self.b), np.copy(self.A),
+                             np.copy(self.A_inv), np.copy(self.cho),
+                             np.copy(self.recompute), self.draw_type)
+
+
 def StatisticalPolicy(k, d, l2=1.0, alpha=1.0, w=None, b=None, A=None, A_inv=None,
                       cho=None, recompute=None, draw_type=TYPE_UCB, **kw_args):
     w = np.zeros((d, k), dtype=np.float64) if w is None else w
@@ -151,4 +158,5 @@ def StatisticalPolicy(k, d, l2=1.0, alpha=1.0, w=None, b=None, A=None, A_inv=Non
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)
+    setattr(out.__class__, '__deepcopy__', __deepcopy)
     return out

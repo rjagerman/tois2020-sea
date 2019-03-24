@@ -21,7 +21,8 @@ class _GreedyPolicy:
         for i in range(x.nnz):
             col = x.indices[i]
             val = x.data[i]
-            self.w[col, a] -= self.lr * val * (s - r)
+            loss = s - r # square loss reward compared to score (predicted reward)
+            self.w[col, a] -= self.lr * val * loss
     
     def draw(self, x):
         return self.max(x)
@@ -57,10 +58,15 @@ def __reduce(self):
     return (GreedyPolicy, (self.k, self.d), self.__getstate__())
 
 
+def __deepcopy(self):
+    return GreedyPolicy(self.k, self.d, self.lr, np.copy(self.w))
+
+
 def GreedyPolicy(k, d, lr=0.01, w=None, **kw_args):
     w = init_weights(k, d, w)
     out = _GreedyPolicy(k, d, lr, w)
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)
+    setattr(out.__class__, '__deepcopy__', __deepcopy)
     return out

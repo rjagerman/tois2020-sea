@@ -25,7 +25,8 @@ class _EpsgreedyPolicy:
         for i in range(x.nnz):
             col = x.indices[i]
             val = x.data[i]
-            self.w[col, a] -= self.lr * val * (s - r)
+            loss = s - r # square loss reward compared to score (predicted reward)
+            self.w[col, a] -= self.lr * val * loss
     
     def draw(self, x):
         if np.random.random() < self.eps:
@@ -68,10 +69,15 @@ def __reduce(self):
     return (EpsgreedyPolicy, (self.k, self.d), self.__getstate__())
 
 
+def __deepcopy(self):
+    return EpsgreedyPolicy(self.k, self.d, self.lr, self.eps, np.copy(self.w))
+
+
 def EpsgreedyPolicy(k, d, lr=0.01, eps=0.05, w=None, **kw_args):
     w = init_weights(k, d, w)
     out = _EpsgreedyPolicy(k, d, lr, eps, w)
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)
+    setattr(out.__class__, '__deepcopy__', __deepcopy)
     return out

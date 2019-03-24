@@ -1,6 +1,7 @@
 import numpy as np
 import numba
 from experiments.classification.policies.util import init_weights, argmax
+from rulpy.math import grad_softmax, log_softmax, grad_log_softmax
 
 
 _IPS_POLICY_TYPE_CACHE = {}
@@ -24,12 +25,21 @@ def _IPSPolicy(bl_type):
             self.w = w
         
         def update(self, x, a, r):
-            ips = 1.0 / max(self.cap, self.probability(x, a))
-            s = x.dot(self.w[:, a])
+            p = max(self.cap, self.probability(x, a))
+            s = x.dot(self.w)
+            g = grad_softmax(s)
             for i in range(x.nnz):
                 col = x.indices[i]
                 val = x.data[i]
-                self.w[col, a] -= self.lr * val * (s - r) * ips
+                loss = 0.5 - r # advantage loss
+                self.w[col, a] -= self.lr * val * g[a] * loss / p
+            # ips = 1.0 / max(self.cap, self.probability(x, a))
+            # s = x.dot(self.w)
+            # g = grad_softmax(s)
+            # for i in range(x.nnz):
+            #     col = x.indices[i]
+            #     val = x.data[i]
+            #     self.w[col, a] -= self.lr * val * g[a] * (1.0 - 2.0 * r) * ips
         
         def draw(self, x):
             return self.baseline.draw(x)
@@ -68,6 +78,10 @@ def __reduce(self):
     return (IPSPolicy, (self.k, self.d, self.baseline), self.__getstate__())
 
 
+def __deepcopy(self):
+    return IPSPolicy(self.k, self.d, self.baseline.__deepcopy__(), self.lr, self.cap, np.copy(self.w))
+
+
 def IPSPolicy(k, d, baseline, lr=0.01, cap=0.05, w=None, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
@@ -77,4 +91,5 @@ def IPSPolicy(k, d, baseline, lr=0.01, cap=0.05, w=None, **kw_args):
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)
+    setattr(out.__class__, '__deepcopy__', __deepcopy)
     return out

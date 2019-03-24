@@ -31,7 +31,7 @@ def main():
     args = cli_parser.parse_args()
 
     parser = ArgumentParser()
-    parser.add_argument("--iterations", type=int, default=100000)
+    parser.add_argument("--iterations", type=int, default=1000000)
     parser.add_argument("--evaluations", type=int, default=50)
     parser.add_argument("--eval_scale", choices=('lin', 'log'), default='lin')
     parser.add_argument("--strategy", type=str, default='epsgreedy')
@@ -51,16 +51,17 @@ def main():
         results = [run_experiment(config, args.dataset, args.repeats) for config in configs]
     results = [r.result for r in results]
 
-    # for result, config in sorted(zip(results, configs), key=lambda e: e[0].result['best']['conf'][-1][0], reverse=True):
-    #     best_res = f"{result.result['best']['mean'][-1]:.4f} +/- {result.result['best']['std'][-1]:.4f} => {result.result['best']['conf'][-1][0]:.4f}"
-    #     policy_res = f"{result.result['policy']['mean'][-1]:.4f} +/- {result.result['policy']['std'][-1]:.4f} => {result.result['policy']['conf'][-1][0]:.4f}"
-    #     logging.info(f"{config.strategy} ({config.lr}) = {best_res} (deterministic)   {policy_res} (policy)")
+    for result, config in sorted(zip(results, configs), key=lambda e: e[0]['best']['conf'][-1][0], reverse=True):
+        best_res = f"{result['best']['mean'][-1]:.4f} +/- {result['best']['std'][-1]:.4f} => {result['best']['conf'][-1][0]:.4f}"
+        policy_res = f"{result['policy']['mean'][-1]:.4f} +/- {result['policy']['std'][-1]:.4f} => {result['policy']['conf'][-1][0]:.4f}"
+        logging.info(f"{config.strategy} ({config.lr}) = {best_res} (deterministic)   {policy_res} (policy)")
+    
     fig, ax = plt.subplots()
     for config, result in zip(configs, results):
         label = f"{config.strategy} ({config.lr})" if config.label is None else config.label
         x = result['x']
-        y = result['policy']['mean']
-        y_std = result['policy']['std']
+        y = result['best']['mean']
+        y_std = result['best']['std']
         ax.plot(x, y, label=label)
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
     ax.set_xlabel('Time $t$')
@@ -124,7 +125,10 @@ async def evaluate_model(config, data, points, index, seed):
     # Evaluate results with the test policy
     rng_seed(seed)
     acc_policy, acc_best = evaluate(test, policy)
-    logging.info(f"[{points[index]:7d}] {config.strategy}: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
+    bounds = ""
+    if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
+        bounds = f" :: {policy.ucb_baseline} <> {policy.lcb_w}"
+    logging.info(f"[{points[index]:7d}] {config.strategy}: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic) {bounds}")
     return {
         'policy': acc_policy,
         'best': acc_best
@@ -141,6 +145,7 @@ async def train_model(config, data, points, index, seed):
         return await build_policy(config, data, seed)
     
     policy = await train_model(config, data, points, index - 1, seed)
+    policy = policy.__deepcopy__()
 
     # Train actual model on the data
     rng_seed(seed)

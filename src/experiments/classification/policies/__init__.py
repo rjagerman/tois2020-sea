@@ -3,6 +3,7 @@ from experiments.classification.policies.epsgreedy import EpsgreedyPolicy
 from experiments.classification.policies.greedy import GreedyPolicy
 from experiments.classification.policies.uniform import UniformPolicy
 from experiments.classification.policies.ips import IPSPolicy
+from experiments.classification.policies.sea import SEAPolicy
 from experiments.classification.policies.statistical import StatisticalPolicy, TYPE_UCB as _TYPE_UCB, TYPE_THOMPSON as _TYPE_THOMPSON
 
 
@@ -13,7 +14,8 @@ _STRATEGY_MAP = {
     'uniform': lambda k, d, args: UniformPolicy(k, d, args['lr'], args['w']),
     'ips': lambda k, d, args: IPSPolicy(k, d, args['baseline'], args['lr'], args['cap'], args['w']),
     'ucb': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], draw_type=_TYPE_UCB),
-    'thompson': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], draw_type=_TYPE_THOMPSON)
+    'thompson': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], draw_type=_TYPE_THOMPSON),
+    'sea': lambda k, d, args: SEAPolicy(k, d, args['baseline'], args['lr'], args['cap'], args['w'], args['confidence']),
 }
 
 def create_policy(strategy, k, d, **args):
@@ -24,7 +26,8 @@ def create_policy(strategy, k, d, **args):
         'eps': 0.05,
         'tau': 1.0,
         'cap': 0.05,
-        'alpha': 1.0
+        'alpha': 1.0,
+        'confidence': 0.95
     }
     defaults.update(args)
     return _STRATEGY_MAP[strategy](k, d, defaults)

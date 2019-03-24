@@ -1,7 +1,7 @@
 import numpy as np
 import numba
 from experiments.classification.policies.util import init_weights, argmax
-from rulpy.math import log_softmax, grad_softmax
+from rulpy.math import log_softmax, grad_softmax, softmax
 
 
 @numba.jitclass([
@@ -20,11 +20,13 @@ class _BoltzmannPolicy:
         self.w = w
     
     def update(self, x, a, r):
-        s = x.dot(self.w[:, a])
+        s = x.dot(self.w)
+        g = grad_softmax(s / self.tau)
         for i in range(x.nnz):
             col = x.indices[i]
             val = x.data[i]
-            self.w[col, a] -= self.lr * val * (s - r)
+            loss = 0.5 - r # advantage loss
+            self.w[col, a] -= self.lr * val * g[a] * loss
     
     def draw(self, x):
         s = x.dot(self.w)
@@ -39,8 +41,11 @@ class _BoltzmannPolicy:
     
     def probability(self, x, a):
         s = x.dot(self.w)
-        e = np.exp(s / self.tau)
-        return e[a] / np.sum(e)
+        return softmax(s)[a]
+
+    def log_probability(self, x, a):
+        s = x.dot(self.w)
+        return log_softmax(s)[a]
 
 
 def __getstate(self):
@@ -65,10 +70,15 @@ def __reduce(self):
     return (BoltzmannPolicy, (self.k, self.d), self.__getstate__())
 
 
+def __deepcopy(self):
+    return BoltzmannPolicy(self.k, self.d, self.lr, self.tau, np.copy(self.w))
+
+
 def BoltzmannPolicy(k, d, lr=0.01, tau=1.0, w=None, **kw_args):
     w = init_weights(k, d, w)
     out = _BoltzmannPolicy(k, d, lr, tau, w)
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)
+    setattr(out.__class__, '__deepcopy__', __deepcopy)
     return out
