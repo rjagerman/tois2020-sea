@@ -37,7 +37,7 @@ def _SEAPolicy(bl_type):
         ('recompute_bounds', numba.int32)
     ])
     class SEAPolicy:
-        def __init__(self, k, d, lr, cap, baseline, w, confidence, history, ucb_baseline, lcb_w):
+        def __init__(self, k, d, lr, cap, baseline, w, confidence, history, ucb_baseline, lcb_w, recompute_bounds):
             self.k = k
             self.d = d
             self.lr = lr
@@ -48,7 +48,7 @@ def _SEAPolicy(bl_type):
             self.history = history
             self.ucb_baseline = ucb_baseline
             self.lcb_w = lcb_w
-            self.recompute_bounds = 0
+            self.recompute_bounds = recompute_bounds
         
         def update(self, dataset, index, a, r):
             x, _ = dataset.get(index)
@@ -155,7 +155,8 @@ def __getstate(self):
             self.history[3]
         ),
         'ucb_baseline': self.ucb_baseline,
-        'lcb_w': self.lcb_w
+        'lcb_w': self.lcb_w,
+        'recompute_bounds': self.recompute_bounds
     }
 
 
@@ -170,6 +171,7 @@ def __setstate(self, state):
     self.history = state['history']
     self.ucb_baseline = state['ucb_baseline']
     self.lcb_w = state['lcb_w']
+    self.recompute_bounds = state['recompute_bounds']
 
 
 def __reduce(self):
@@ -183,10 +185,10 @@ def __deepcopy(self):
                          self.history[1].__deepcopy__(),
                          self.history[2].__deepcopy__(),
                          self.history[3].__deepcopy__()
-                     ), self.ucb_baseline, self.lcb_w)
+                     ), self.ucb_baseline, self.lcb_w, self.recompute_bounds)
 
 
-def SEAPolicy(k, d, baseline, lr=0.01, cap=0.05, w=None, confidence=0.95, history=None, ucb_baseline=0.0, lcb_w=0.0, **kw_args):
+def SEAPolicy(k, d, baseline, lr=0.01, cap=0.05, w=None, confidence=0.95, history=None, ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=0, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
     if bl_type not in _SEA_POLICY_TYPE_CACHE:
@@ -197,7 +199,7 @@ def SEAPolicy(k, d, baseline, lr=0.01, cap=0.05, w=None, confidence=0.95, histor
         GrowingArray(dtype=numba.float64),
         GrowingArray(dtype=numba.float64)
     ) if history is None else history
-    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, lr, cap, baseline, w, confidence, history, ucb_baseline, lcb_w)
+    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, lr, cap, baseline, w, confidence, history, ucb_baseline, lcb_w, recompute_bounds)
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)

@@ -3,9 +3,6 @@ import numpy as np
 import numba
 import matplotlib
 from matplotlib import pyplot as plt
-matplotlib.rcParams['text.latex.preamble'] = '\\usepackage{libertine},\\usepackage[libertine]{newtxmath},\\usepackage{sfmath},\\usepackage[T1]{fontenc}'
-matplotlib.rcParams['text.usetex'] = True
-matplotlib.rcParams.update({'font.size': 13})
 from scipy import stats as st
 from joblib.memory import Memory
 from argparse import ArgumentParser
@@ -33,7 +30,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--iterations", type=int, default=1000000)
     parser.add_argument("--evaluations", type=int, default=50)
-    parser.add_argument("--eval_scale", choices=('lin', 'log'), default='lin')
+    parser.add_argument("--eval_scale", choices=('lin', 'log'), default='log')
     parser.add_argument("--strategy", type=str, default='epsgreedy')
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--l2", type=float, default=1.0)
@@ -64,6 +61,8 @@ def main():
         y_std = result['best']['std']
         ax.plot(x, y, label=label)
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
+        if config.eval_scale == 'log':
+            ax.set_xscale('symlog')
     ax.set_xlabel('Time $t$')
     ax.set_ylabel('Reward $r \in [0, 1]$')
     ax.legend()
