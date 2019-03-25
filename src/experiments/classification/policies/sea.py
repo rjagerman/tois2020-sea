@@ -6,11 +6,16 @@ from scipy.sparse import csr_matrix
 from rulpy.array import GrowingArray
 from rulpy.math import log_softmax, grad_softmax, softmax
 from llvmlite import binding
+
+
+# The jitclass below exceeds the max-name-size of llvm, because of the way
+# numba names the jitclass methods. Therefore we extend the max-name-size of
+# llvm here.
 binding.set_option("tmp", "-non-global-value-max-name-size=4096")
 
 
-_sparse_m = numba.typeof(from_scipy(csr_matrix((0,0))))
 _SEA_POLICY_TYPE_CACHE = {}
+
 
 def _SEAPolicy(bl_type):
     @numba.jitclass([
