@@ -36,7 +36,8 @@ class _StatisticalPolicy:
         self.recompute = recompute
         self.draw_type = draw_type
     
-    def update(self, x, a, r):
+    def update(self, train, index, a, r):
+        x, _ = train.get(index)
         xd = x.to_dense()
         x2 = xd.reshape((xd.shape[0], 1))
         self.A[a, :, :] = self.A[a, :, :] + (x2 @ x2.T)
