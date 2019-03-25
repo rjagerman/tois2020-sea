@@ -78,7 +78,7 @@ class _StatisticalPolicy:
         u = np.random.standard_normal(self.w.shape)
         s = np.zeros(self.k)
         for i in range(self.k):
-            s[i] = np.dot(x, self.w[i,:] + (self.cho[i,:,:] @ u[i,:]))
+            s[i] = np.dot(x, self.w[:,i] + (self.cho[i,:,:] @ u[:,i]))
         return argmax(s)
 
     def max(self, x):
