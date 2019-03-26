@@ -62,7 +62,7 @@ def _SEAPolicy(bl_type):
                 self.w[col, a] -= self.lr * val * g[a] * loss / p
             self._record_history(index, a, r, p)
             self.recompute_bounds += 1
-            if self.recompute_bounds >= 10000:
+            if self.recompute_bounds >= 1000:
                 self._recompute_bounds(dataset)
                 self._update_baseline()
                 self.recompute_bounds = 0
@@ -97,7 +97,6 @@ def _SEAPolicy(bl_type):
                 s = x.dot(self.w)
                 sa = 1.0 * (argmax(s) == a)
                 new_p = sa * (1 - 0.05) + 0.05 * (1.0 / self.k)
-                #new_p = softmax(s)[a]
 
                 est_new = new_p * r / p
                 est_baseline = self.baseline.probability(x, a) * r / p
