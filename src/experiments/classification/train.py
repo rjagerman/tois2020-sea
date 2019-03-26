@@ -58,18 +58,18 @@ def main():
         json.dump(js_results, f, cls=NumpyEncoder)
     
     # Print results
-    for result, config in sorted(zip(results, configs), key=lambda e: e[0]['best']['conf'][-1][0], reverse=True):
-        best_res = f"{result['best']['mean'][-1]:.4f} +/- {result['best']['std'][-1]:.4f} => {result['best']['conf'][-1][0]:.4f}"
-        policy_res = f"{result['policy']['mean'][-1]:.4f} +/- {result['policy']['std'][-1]:.4f} => {result['policy']['conf'][-1][0]:.4f}"
-        logging.info(f"{config.strategy} ({config.lr}) = {best_res} (deterministic)   {policy_res} (policy)")
+    for result, config in sorted(zip(results, configs), key=lambda e: e[0]['model']['conf'][0][-1], reverse=True):
+        model_res = f"{result['model']['mean'][-1]:.4f} +/- {result['model']['std'][-1]:.4f} => {result['model']['conf'][0][-1]:.4f}"
+        explore_res = f"{result['explore']['mean'][-1]:.4f} +/- {result['explore']['std'][-1]:.4f} => {result['explore']['conf'][0][-1]:.4f}"
+        logging.info(f"{config.strategy} ({config.lr}) = {model_res} (model)   {explore_res} (explore)")
 
     # Create plot
     fig, ax = plt.subplots()
     for config, result in zip(configs, results):
         label = f"{config.strategy} ({config.lr})" if config.label is None else config.label
         x = result['x']
-        y = result['best']['mean']
-        y_std = result['best']['std']
+        y = result['model']['mean']
+        y_std = result['model']['std']
         ax.plot(x, y, label=label)
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
     if args.eval_scale == 'log':
@@ -97,8 +97,8 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
 
     # Combine results with different seeded repeats
     results = {
-        "best": np.vstack([x["model"] for x in results]),
-        "policy": np.vstack([x["explore"] for x in results])
+        "model": np.vstack([x["model"] for x in results]),
+        "explore": np.vstack([x["explore"] for x in results])
     }
 
     # Compute aggregate statistics from results
