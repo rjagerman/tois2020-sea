@@ -82,6 +82,7 @@ async def evaluate_baseline(data, lr, fraction, epochs, eps, seed):
     test = load_test(data, seed)
     baseline = train_baseline(data, lr, fraction, epochs, eps, seed)
     test, baseline = await test, await baseline
+    baseline = baseline.__deepcopy__()
     rng_seed(seed)
     acc_policy, acc_best = evaluate(test, baseline)
     logging.info(f"[{seed}, {lr}, {eps}] evaluation baseline: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic)")
@@ -91,13 +92,13 @@ async def evaluate_baseline(data, lr, fraction, epochs, eps, seed):
 @task(use_cache=True)
 async def train_baseline(data, lr, fraction, epochs, eps, seed):
     train = await load_train(data)
-    model = EpsgreedyPolicy(train.k, train.d, lr=lr, eps=eps)
+    policy = EpsgreedyPolicy(train.k, train.d, lr=lr, eps=eps)
     baseline_size = int(fraction * train.n)
     prng = rng_seed(seed)
     indices = prng.permutation(train.n)[0:baseline_size]
-    logging.info(f"[{seed}, {lr}, {eps}] training baseline (size: {baseline_size})")
-    optimize_supervised_hinge(train, indices, model, lr, epochs)
-    return model
+    logging.info(f"[{seed}, {lr}, {eps}] training baseline (size: {baseline_size}, weights:{train.d * train.k})")
+    optimize_supervised_hinge(train, indices, policy, lr, epochs)
+    return policy
 
 
 @task

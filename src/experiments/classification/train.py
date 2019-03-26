@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--eps", type=float, default=0.1)
     parser.add_argument("--tau", type=float, default=1.0)
     parser.add_argument("--alpha", type=float, default=1.0)
-    parser.add_argument("--cap", type=float, default=0.05)
+    parser.add_argument("--cap", type=float, default=0.01)
     parser.add_argument("--label", type=str, default=None)
 
     # Read experiment configuration
@@ -83,38 +83,78 @@ def main():
 
 @task(use_cache=True)
 async def run_experiment(config, data, repeats, iterations, evaluations, eval_scale, seed_base=4200):
-    
-    # Load training data
-    train = await load_train(data)
 
     # points to evaluate at
     points = get_evaluation_points(iterations, evaluations, eval_scale)
     
     # Evaluate at all points and all seeds
-    results = [[] for _ in range(len(points))]
+    results = []
     for seed in range(seed_base, seed_base + repeats):
-        for index in range(len(points)):
-            results[index].append(evaluate_model(config, data, points, index, seed))
-    
-    # Await results and compute mean/std/n of results
-    out = {'best': {'mean': [], 'std': [], 'conf': [], 'n': []}, 'policy': {'mean': [], 'std': [], 'conf': [], 'n': []}, 'x': points}
-    for t in ['best', 'policy']:
-        for runs in results:
-            arr = np.array([(await r)[t] for r in runs])
-            out[t]['mean'].append(np.mean(arr))
-            out[t]['std'].append(np.std(arr))
-            out[t]['conf'].append(st.t.interval(0.95, len(arr)-1, loc=np.mean(arr), scale=st.sem(arr)))
-            out[t]['n'].append(arr.shape[0])
-        for k in out[t].keys():
-            out[t][k] = np.array(out[t][k])
+        results.append(classification_run(config, data, points, seed))
 
-    # Await for all results to compute, then return it
+    # Await results to finish computing
+    results = [await r for r in results]
+
+    # Combine results with different seeded repeats
+    results = {
+        "best": np.vstack([x["model"] for x in results]),
+        "policy": np.vstack([x["explore"] for x in results])
+    }
+
+    # Compute aggregate statistics from results
+    out = {
+        k: {
+            "mean": np.mean(results[k], axis=0),
+            "std": np.std(results[k], axis=0),
+            "conf": st.t.interval(0.95, results[k].shape[0] - 1, loc=np.mean(results[k], axis=0), scale=st.sem(results[k], axis=0)),
+            "n": results[k].shape[0]
+        }
+        for k in results.keys()
+    }
+    out["x"] = points
+    
+    # Return results
+    return out
+
+
+@task(use_cache=True)
+async def classification_run(config, data, points, seed):
+
+    # Load train, test and policy
+    train = load_train(data, seed)
+    test = load_test(data, seed)
+    policy = build_policy(config, data, seed)
+    train, test, policy = await train, await test, await policy
+    policy = policy.__deepcopy__()
+
+    # Data structure to hold output results
+    out = {
+        'explore': np.zeros(len(points)),
+        'model': np.zeros(len(points))
+    }
+
+    # Generate training indices and seed randomness
+    prng = rng_seed(seed)
+    indices = prng.randint(0, train.n, np.max(points))
+
+    # Evaluate on point 0
+    out['explore'][0], out['model'][0] = evaluate(test, policy)
+    log_progress(0, points, out, policy, config, seed)
+
+    # Train and evaluate at specified points
+    for i in range(1, len(points)):
+        start = points[i - 1]
+        end = points[i]
+        optimize(train, indices[start:end], policy)
+        out['explore'][i], out['model'][i] = evaluate(test, policy)
+        log_progress(i, points, out, policy, config, seed)
+    
     return out
 
 
 @task
 async def build_policy(config, data, seed):
-    train = load_train(data)
+    train = load_train(data, seed)
     baseline = best_baseline(data, seed)
     train, baseline = await train, await baseline
     args = {'k': train.k, 'd': train.d, 'baseline': baseline}
@@ -122,48 +162,11 @@ async def build_policy(config, data, seed):
     return create_policy(**args)
 
 
-@task
-async def evaluate_model(config, data, points, index, seed):
-    # Load test data, model and test_policy
-    train = load_train(data)
-    test = load_test(data, seed)
-    policy = train_model(config, data, points, index, seed)
-
-    # Wait for sub tasks to finish
-    train, test, policy = await train, await test, await policy
-
-    # Evaluate results with the test policy
-    rng_seed(seed)
-    acc_policy, acc_best = evaluate(test, policy)
+def log_progress(index, points, out, policy, config, seed):
     bounds = ""
     if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
-        bounds = f" :: {policy.ucb_baseline} <> {policy.lcb_w}"
-    logging.info(f"[{seed}, {points[index]:7d}] {config.strategy}: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic) {bounds}")
-    return {
-        'policy': acc_policy,
-        'best': acc_best
-    }
-
-
-@task
-async def train_model(config, data, points, index, seed):
-    # Load train data
-    train = await load_train(data)
-
-    # If we are at iteration 0, just return initialized model
-    if index == 0:
-        return await build_policy(config, data, seed)
-    
-    policy = await train_model(config, data, points, index - 1, seed)
-    policy = policy.__deepcopy__()
-
-    # Train actual model on the data
-    prng = rng_seed(seed)
-    indices = prng.randint(0, train.n, np.max(points))[points[index-1]:points[index]]
-    optimize(train, indices, policy)
-
-    # Return the trained model
-    return policy
+        bounds = f" :: {policy.ucb_baseline:.6f} <> {policy.lcb_w:.6f}"
+    logging.info(f"[{points[index]:7d}, {seed}] {config.strategy}: {out['explore'][index]:.4f} (stochastic) {out['model'][index]:.4f} (deterministic) {bounds}")
 
 
 if __name__ == "__main__":
