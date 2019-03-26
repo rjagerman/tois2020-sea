@@ -1,5 +1,7 @@
 import numpy as np
 import numba
+import os
+import json
 
 
 @numba.njit(nogil=True)
@@ -22,3 +24,17 @@ def get_evaluation_points(iterations, evaluations, scale):
     else:
         return np.array([iterations], dtype=np.int32)
 
+
+def mkdir_if_not_exists(path):
+    directory = os.path.dirname(path)
+    try:
+        os.makedirs(directory)
+    except FileExistsError:
+        pass
+
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)

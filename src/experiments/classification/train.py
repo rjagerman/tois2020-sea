@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import numba
 import matplotlib
+import json
 from matplotlib import pyplot as plt
 from scipy import stats as st
 from joblib.memory import Memory
@@ -12,7 +13,7 @@ from experiments.classification.optimization import optimize
 from experiments.classification.evaluation import evaluate
 from experiments.classification.baseline import best_baseline
 from experiments.classification.dataset import load_train, load_test
-from experiments.util import rng_seed, get_evaluation_points
+from experiments.util import rng_seed, get_evaluation_points, mkdir_if_not_exists, NumpyEncoder
 
 
 def main():
@@ -25,12 +26,12 @@ def main():
     cli_parser.add_argument("-p", "--parallel", type=int, default=1)
     cli_parser.add_argument("-o", "--output", type=str, required=True)
     cli_parser.add_argument("--cache", type=str, default="cache")
+    cli_parser.add_argument("--iterations", type=int, default=1000000)
+    cli_parser.add_argument("--evaluations", type=int, default=50)
+    cli_parser.add_argument("--eval_scale", choices=('lin', 'log'), default='log')
     args = cli_parser.parse_args()
 
     parser = ArgumentParser()
-    parser.add_argument("--iterations", type=int, default=1000000)
-    parser.add_argument("--evaluations", type=int, default=50)
-    parser.add_argument("--eval_scale", choices=('lin', 'log'), default='log')
     parser.add_argument("--strategy", type=str, default='epsgreedy')
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--l2", type=float, default=1.0)
@@ -40,19 +41,29 @@ def main():
     parser.add_argument("--cap", type=float, default=0.05)
     parser.add_argument("--label", type=str, default=None)
 
+    # Read experiment configuration
     with open(args.config, 'rt') as f:
         lines = f.readlines()
         configs = [parser.parse_args(line.strip().split(" ")) for line in lines]
 
+    # Run experiments in task executor
     with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
-        results = [run_experiment(config, args.dataset, args.repeats) for config in configs]
+        results = [run_experiment(config, args.dataset, args.repeats, args.iterations, args.evaluations, args.eval_scale) for config in configs]
     results = [r.result for r in results]
-
+    
+    # Write json results
+    mkdir_if_not_exists(f"results/{args.output}.json")
+    with open(f"results/{args.output}.json", "wt") as f:
+        js_results = [{"result": result, "args": vars(config)} for result, config in zip(results, configs)]
+        json.dump(js_results, f, cls=NumpyEncoder)
+    
+    # Print results
     for result, config in sorted(zip(results, configs), key=lambda e: e[0]['best']['conf'][-1][0], reverse=True):
         best_res = f"{result['best']['mean'][-1]:.4f} +/- {result['best']['std'][-1]:.4f} => {result['best']['conf'][-1][0]:.4f}"
         policy_res = f"{result['policy']['mean'][-1]:.4f} +/- {result['policy']['std'][-1]:.4f} => {result['policy']['conf'][-1][0]:.4f}"
         logging.info(f"{config.strategy} ({config.lr}) = {best_res} (deterministic)   {policy_res} (policy)")
-    
+
+    # Create plot
     fig, ax = plt.subplots()
     for config, result in zip(configs, results):
         label = f"{config.strategy} ({config.lr})" if config.label is None else config.label
@@ -61,23 +72,23 @@ def main():
         y_std = result['best']['std']
         ax.plot(x, y, label=label)
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
-        if config.eval_scale == 'log':
-            ax.set_xscale('symlog')
+    if args.eval_scale == 'log':
+        ax.set_xscale('symlog')
     ax.set_xlabel('Time $t$')
     ax.set_ylabel('Reward $r \in [0, 1]$')
     ax.legend()
-    fig.savefig(f"plots/{args.output}")
+    mkdir_if_not_exists(f"plots/{args.output}.pdf")
+    fig.savefig(f"plots/{args.output}.pdf")
 
 
 @task(use_cache=True)
-async def run_experiment(config, data, repeats, seed_base=4200):
+async def run_experiment(config, data, repeats, iterations, evaluations, eval_scale, seed_base=4200):
     
     # Load training data
     train = await load_train(data)
 
     # points to evaluate at
-    points = get_evaluation_points(config.iterations, config.evaluations,
-                                   config.eval_scale)
+    points = get_evaluation_points(iterations, evaluations, eval_scale)
     
     # Evaluate at all points and all seeds
     results = [[] for _ in range(len(points))]
@@ -127,7 +138,7 @@ async def evaluate_model(config, data, points, index, seed):
     bounds = ""
     if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
         bounds = f" :: {policy.ucb_baseline} <> {policy.lcb_w}"
-    logging.info(f"[{points[index]:7d}] {config.strategy}: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic) {bounds}")
+    logging.info(f"[{seed}, {points[index]:7d}] {config.strategy}: {acc_policy:.4f} (stochastic) {acc_best:.4f} (deterministic) {bounds}")
     return {
         'policy': acc_policy,
         'best': acc_best
@@ -147,7 +158,6 @@ async def train_model(config, data, points, index, seed):
     policy = policy.__deepcopy__()
 
     # Train actual model on the data
-    rng_seed(seed)
     prng = rng_seed(seed)
     indices = prng.randint(0, train.n, np.max(points))[points[index-1]:points[index]]
     optimize(train, indices, policy)
