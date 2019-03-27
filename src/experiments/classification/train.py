@@ -76,6 +76,7 @@ def main():
         ax.set_xscale('symlog')
     ax.set_xlabel('Time $t$')
     ax.set_ylabel('Reward $r \in [0, 1]$')
+    ax.set_ylim([0.0, 1.0])
     ax.legend()
     mkdir_if_not_exists(f"plots/{args.output}.pdf")
     fig.savefig(f"plots/{args.output}.pdf")
