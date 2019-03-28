@@ -103,7 +103,7 @@ async def train_baseline(data, lr, fraction, epochs, eps, seed):
 
 @task
 async def best_baseline(data, seed):
-    with open("conf/baselines.json", "rt") as f:
+    with open("conf/classification/baselines.json", "rt") as f:
         baselines = json.load(f)
     return await train_baseline(data, seed=seed, **baselines[data])
 

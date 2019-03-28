@@ -11,6 +11,7 @@ ipython = "*"
 matplotlib = "*"
 rulpy = {path = "./../rulpy"}
 sklearn = "*"
+ltrpy = {path = "./../ltrpy"}
 
 [dev-packages]
 pylint = "*"

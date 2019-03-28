@@ -1,0 +1,19 @@
+{
+    "mslr10k": {
+        "path": "/path/to/datasets/MSLR-WEB10k",
+        "has_folds": true,
+        "folds": 5,
+        "has_vali": true
+    },
+    "istella-s": {
+        "path": "/path/to/datasets/istella/sample",
+        "has_folds": false,
+        "has_vali": false,
+        "vali_fraction": 0.1
+    },
+    "yahoo": {
+        "path": "/path/to/datasets/Yahoo/set1",
+        "has_folds": false,
+        "has_vali": true
+    }
+}

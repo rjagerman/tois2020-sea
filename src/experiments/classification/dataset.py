@@ -9,7 +9,7 @@ from collections import namedtuple
 from experiments.sparse import from_scipy
 from experiments.util import rng_seed
 
-with open("conf/datasets.json", "rt") as f:
+with open("conf/classification/datasets.json", "rt") as f:
     datasets = json.load(f)
 
 _readonly_i32_1d = np.array([0], dtype=np.int32)
