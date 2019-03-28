@@ -8,7 +8,7 @@ from rulpy.pipeline.task_executor import task, TaskExecutor
 from experiments.util import rng_seed
 from experiments.ranking.dataset import load_test, load_train
 from experiments.ranking.optimization import optimize_supervised
-from experiments.ranking.evaluation import evaluate
+from experiments.ranking.evaluation import evaluate_fraction
 from experiments.ranking.policies.online import OnlinePolicy
 
 
@@ -64,7 +64,7 @@ async def evaluate_baseline(data, lr, fraction, epochs, seed):
     baseline = train_baseline(data, lr, fraction, epochs, seed)
     test, baseline = await test, await baseline
     rng_seed(seed)
-    ndcg_score = evaluate(test, baseline)
+    ndcg_score, _ = evaluate_fraction(test, baseline, fraction)
     logging.info(f"[{seed}, {lr}] evaluation baseline: {ndcg_score:.4f}")
     return ndcg_score
 

@@ -60,16 +60,16 @@ def main():
         json.dump(js_results, f, cls=NumpyEncoder)
 
     # Print results
-    for result, config in sorted(zip(results, configs), key=lambda e: e[0]['conf'][0][-1], reverse=True):
-        logging.info(f"{args.dataset} {args.behavior} {config.strategy} ({config.lr}): {result['mean'][-1]} +/- {result['std'][-1]} => {result['conf'][0][-1]}")
+    for result, config in sorted(zip(results, configs), key=lambda e: e[0]['learned']['conf'][0][-1], reverse=True):
+        logging.info(f"{args.dataset} {args.behavior} {config.strategy} ({config.lr}): {result['learned']['mean'][-1]:.5f} +/- {result['learned']['std'][-1]:.5f} => {result['learned']['conf'][0][-1]:.5f}")
 
     # Create plot
     fig, ax = plt.subplots()
     for config, result in zip(configs, results):
         label = f"{config.strategy} ({config.lr})" if config.label is None else config.label
         x = result['x']
-        y = result['mean']
-        y_std = result['std']
+        y = result['learned']['mean']
+        y_std = result['learned']['std']
         ax.plot(x, y, label=label)
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
     if args.eval_scale == 'log':
@@ -79,7 +79,6 @@ def main():
     ax.legend()
     mkdir_if_not_exists(f"plots/{args.output}.pdf")
     fig.savefig(f"plots/{args.output}.pdf")
-
 
 
 @task(use_cache=True)
@@ -94,16 +93,23 @@ async def run_experiment(config, data, behavior, repeats, iterations, evaluation
         results.append(ranking_run(config, data, behavior, points, seed))
 
     # Await results to finish computing
-    results = np.vstack([await r for r in results])
+    results = [await r for r in results]
+    results = {
+        "deploy": np.vstack([r["deploy"] for r in results]),
+        "learned": np.vstack([r["learned"] for r in results])
+    }
 
     # Compute aggregate statistics from results
     out = {
-        "mean": np.mean(results, axis=0),
-        "std": np.std(results, axis=0),
-        "conf": st.t.interval(0.95, results.shape[0] - 1, loc=np.mean(results, axis=0), scale=st.sem(results, axis=0)),
-        "n": results.shape[0],
-        "x": points
+        k: {
+            "mean": np.mean(results[k], axis=0),
+            "std": np.std(results[k], axis=0),
+            "conf": st.t.interval(0.95, results[k].shape[0] - 1, loc=np.mean(results[k], axis=0), scale=st.sem(results[k], axis=0)),
+            "n": results[k].shape[0]
+        }
+        for k in results.keys()
     }
+    out["x"] = points
     
     # Return results
     return out
@@ -119,7 +125,10 @@ async def ranking_run(config, data, behavior, points, seed):
     train, test, baseline = await train, await test, await baseline
 
     # Data structure to hold output results
-    out = np.zeros(len(points))
+    out = {
+        'deploy': np.zeros(len(points)),
+        'learned': np.zeros(len(points))
+    }
 
     # Seed randomness
     prng = rng_seed(seed)
@@ -140,18 +149,25 @@ async def ranking_run(config, data, behavior, points, seed):
     indices = prng.randint(0, train.size, np.max(points))
 
     # Evaluate on point 0
-    out[0] = evaluate(test, policy)
-    logging.info(f"[{seed}, {0:7d}] {data} {behavior} {config.strategy} ({config.lr}): {out[0]:.5f}")
+    out['deploy'][0], out['learned'][0] = evaluate(test, policy)
+    log_progress(0, points, seed, data, behavior, config, out, policy)
 
     # Train and evaluate at specified points
     for i in range(1, len(points)):
         start = points[i - 1]
         end = points[i]
         optimize(train, indices[start:end], policy, click_model)
-        out[i] = evaluate(test, policy)
-        logging.info(f"[{seed}, {end:7d}] {data} {behavior} {config.strategy} ({config.lr}): {out[i]:.5f}")
+        out['deploy'][i], out['learned'][i] = evaluate(test, policy)
+        log_progress(i, points, seed, data, behavior, config, out, policy)
 
     return out
+
+
+def log_progress(i, points, seed, data, behavior, config, out, policy):
+    bounds = ""
+    if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
+        bounds = f" :: {policy.lcb_w:.6f} ?> {policy.ucb_baseline:.6f}"
+    logging.info(f"[{seed}, {points[i]:7d}] {data} {behavior} {config.strategy} ({config.lr}): {out['learned'][i]:.5f} (learned) {out['deploy'][i]:.5f} (deploy){bounds}")
 
 
 def build_click_model(behavior):

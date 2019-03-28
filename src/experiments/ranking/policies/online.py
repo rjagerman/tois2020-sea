@@ -32,6 +32,9 @@ class _OnlinePolicy:
         s = np.dot(x, self.w)
         return argsort(-s)
 
+    def max(self, x):
+        return self.draw(x)
+
 
 def __getstate(self):
     return {

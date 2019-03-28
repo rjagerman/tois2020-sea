@@ -39,8 +39,12 @@ def _IPSPolicy(bl_type):
                 self.w -= self.lr * grad * (1.0 / propensity)
 
         def draw(self, x):
+            return self.baseline.draw(x)
+
+        def max(self, x):
             s = np.dot(x, self.w)
             return argsort(-s)
+        
     return __IPSPolicy
 
 
