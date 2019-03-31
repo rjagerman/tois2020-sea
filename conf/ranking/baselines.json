@@ -1,6 +1,6 @@
 {
     "mslr10k": {
-        "lr": 1e-5,
+        "lr": 1e-05,
         "fraction": 0.001,
         "epochs": 10
     },
@@ -10,7 +10,7 @@
         "epochs": 10
     },
     "yahoo": {
-        "lr": 0.0001,
+        "lr": 1e-05,
         "fraction": 0.001,
         "epochs": 10
     }
