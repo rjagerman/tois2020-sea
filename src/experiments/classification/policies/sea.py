@@ -2,6 +2,7 @@ import numpy as np
 import numba
 from experiments.classification.policies.util import init_weights, argmax
 from experiments.sparse import from_scipy, SparseVectorList
+from experiments.util import mpeb_bound
 from scipy.sparse import csr_matrix
 from rulpy.array import GrowingArray
 from rulpy.math import log_softmax, grad_softmax, softmax
@@ -21,31 +22,39 @@ def _SEAPolicy(bl_type):
     @numba.jitclass([
         ('k', numba.int32),
         ('d', numba.int32),
+        ('n', numba.int32),
         ('lr', numba.float64),
         ('cap', numba.float64),
         ('baseline', bl_type),
         ('w', numba.float64[:,:]),
         ('confidence', numba.float64),
-        ('history', numba.types.Tuple([
-           numba.typeof(GrowingArray(dtype=numba.int32)),   # vectors
-           numba.typeof(GrowingArray(dtype=numba.int32)),   # actions
-           numba.typeof(GrowingArray(dtype=numba.float64)), # rewards
-           numba.typeof(GrowingArray(dtype=numba.float64))  # propensities
-        ])),
+        ('ips_w', numba.float64[:,:]),
+        ('ips_w2', numba.float64[:,:]),
+        ('ips_n', numba.int64),
+        # ('history', numba.types.Tuple([
+        #    numba.typeof(GrowingArray(dtype=numba.int32)),   # vectors
+        #    numba.typeof(GrowingArray(dtype=numba.int32)),   # actions
+        #    numba.typeof(GrowingArray(dtype=numba.float64)), # rewards
+        #    numba.typeof(GrowingArray(dtype=numba.float64))  # propensities
+        # ])),
         ('ucb_baseline', numba.float64),
         ('lcb_w', numba.float64),
         ('recompute_bounds', numba.int32)
     ])
     class SEAPolicy:
-        def __init__(self, k, d, lr, cap, baseline, w, confidence, history, ucb_baseline, lcb_w, recompute_bounds):
+        def __init__(self, k, d, n, lr, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds):
             self.k = k
             self.d = d
+            self.n = n
             self.lr = lr
             self.cap = cap
             self.baseline = baseline
             self.w = w
             self.confidence = confidence
-            self.history = history
+            # self.history = history
+            self.ips_w = ips_w
+            self.ips_w2 = ips_w2
+            self.ips_n = ips_n
             self.ucb_baseline = ucb_baseline
             self.lcb_w = lcb_w
             self.recompute_bounds = recompute_bounds
@@ -68,10 +77,13 @@ def _SEAPolicy(bl_type):
                 self.recompute_bounds = 0
             
         def _record_history(self, index, a, r, p):
-            self.history[0].append(index)
-            self.history[1].append(a)
-            self.history[2].append(r)
-            self.history[3].append(p)
+            # self.history[0].append(index)
+            # self.history[1].append(a)
+            # self.history[2].append(r)
+            # self.history[3].append(p)
+            self.ips_w[index, a] += r / p
+            self.ips_w2[index, a] += (r / p) ** 2
+            self.ips_n += 1
         
         def _update_baseline(self):
             if self.lcb_w > self.ucb_baseline:
@@ -83,37 +95,63 @@ def _SEAPolicy(bl_type):
                 self.baseline.w = np.copy(self.w)
 
         def _recompute_bounds(self, dataset):
-            n = self.history[1].size
+            new_sum_mean = 0.0
+            new_sum_var = 0.0
+            baseline_sum_mean = 0.0
+            baseline_sum_var = 0.0
+            new_max = 0.0
+            baseline_max = 0.0
+            for index in range(self.n):
+                for a in range(self.k):
+                    if self.ips_w[index, a] != 0.0:
+                        x, _ = dataset.get(index)
+                        s = x.dot(self.w)
+                        sa = 1.0 * (argmax(s) == a)
+                        new_p = sa * (1 - 0.05) + 0.05 * (1.0 / self.k)
+                        baseline_p = self.baseline.probability(x, a)
+                        new_sum_mean += new_p * self.ips_w[index, a]
+                        new_sum_var += new_p**2 * self.ips_w2[index, a]
+                        baseline_sum_mean += baseline_p * self.ips_w[index, a]
+                        baseline_sum_var += baseline_p**2 * self.ips_w2[index, a]
+                        new_max = max(new_max, new_p * self.ips_w[index, a])
+                        baseline_max = max(baseline_max, baseline_p * self.ips_w[index, a])
+            new_mean = new_sum_mean / self.ips_n
+            baseline_mean = baseline_sum_mean / self.ips_n
 
-            x_new = np.zeros(n)
-            x_baseline = np.zeros(n)
-            for i in range(n):
-                index = self.history[0].get(i)
-                a = self.history[1].get(i)
-                r = self.history[2].get(i)
-                p = self.history[3].get(i)
-                x, _ = dataset.get(index)
-                
-                s = x.dot(self.w)
-                sa = 1.0 * (argmax(s) == a)
-                new_p = sa * (1 - 0.05) + 0.05 * (1.0 / self.k)
+            new_var = (new_sum_var / self.ips_n) - (new_mean ** 2)
+            baseline_var = (baseline_sum_var / self.ips_n) - (baseline_mean ** 2)
 
-                est_new = new_p * r / p
-                est_baseline = self.baseline.probability(x, a) * r / p
-                
-                x_new[i] = est_new
-                x_baseline[i] = est_baseline
+            self.ucb_baseline = baseline_mean + mpeb_bound(self.ips_n, self.confidence, baseline_var, baseline_max)
+            self.lcb_w = new_mean - mpeb_bound(self.ips_n, self.confidence, new_var, new_max)
+                        
+            # n = self.history[1].size
+
+            # x_new = np.zeros(n)
+            # x_baseline = np.zeros(n)
+            # for i in range(n):
+            #     index = self.history[0].get(i)
+            #     a = self.history[1].get(i)
+            #     r = self.history[2].get(i)
+            #     p = self.history[3].get(i)
+            #     x, _ = dataset.get(index)
             
-            self.ucb_baseline = np.mean(x_baseline) + self._mpeb_bound(x_baseline)
-            self.lcb_w = np.mean(x_new) - self._mpeb_bound(x_new)
+            #     s = x.dot(self.w)
+            #     sa = 1.0 * (argmax(s) == a)
+            #     new_p = sa * (1 - 0.05) + 0.05 * (1.0 / self.k)
+
+            #     est_new = new_p * r / p
+            #     est_baseline = self.baseline.probability(x, a) * r / p
+            
+            #     x_new[i] = est_new
+            #     x_baseline[i] = est_baseline
+            
+            # self.ucb_baseline = np.mean(x_baseline) + self._mpeb_bound(x_baseline)
+            # self.lcb_w = np.mean(x_new) - self._mpeb_bound(x_new)
         
-        def _mpeb_bound(self, xs):
-            n = xs.shape[0]
+        def _mpeb_bound(self, n, var, maximum):
             C = 1.0 - self.confidence
-            out = (7 * np.max(xs) * np.log(2.0 / C)) / (3 * (n - 1))
-            # The (2 * n^2) factor below is necessary to accurately get the
-            # MPeB bound when using the numpy variance function.
-            out += (1.0 / n) * np.sqrt(np.log(2.0 / C) / (n - 1) * np.var(xs) * (2.0 * n**2))
+            out = (7 * maximum * np.log(2.0 / C)) / (3 * (n - 1))
+            out += (1.0 / n) * np.sqrt(np.log(2.0 / C) / (n - 1) * var * (2.0 * n**2))
             return out
 
         def _ch_bound(self, xs):
@@ -142,17 +180,21 @@ def __getstate(self):
     return {
         'k': self.k,
         'd': self.d,
+        'n': self.n,
         'lr': self.lr,
         'cap': self.cap,
         'baseline': self.baseline,
         'w': self.w,
         'confidence': self.confidence,
-        'history': (
-            self.history[0],
-            self.history[1],
-            self.history[2],
-            self.history[3]
-        ),
+        # 'history': (
+        #     self.history[0],
+        #     self.history[1],
+        #     self.history[2],
+        #     self.history[3]
+        # ),
+        'ips_w': self.ips_w,
+        'ips_w2': self.ips_w2,
+        'ips_n': self.ips_n,
         'ucb_baseline': self.ucb_baseline,
         'lcb_w': self.lcb_w,
         'recompute_bounds': self.recompute_bounds
@@ -162,43 +204,50 @@ def __getstate(self):
 def __setstate(self, state):
     self.k = state['k']
     self.d = state['d']
+    self.n = state['n']
     self.lr = state['lr']
     self.cap = state['cap']
     self.baseline = state['baseline']
     self.w = state['w']
     self.confidence = state['confidence']
-    self.history = state['history']
+    #self.history = state['history']
+    self.ips_w = state['ips_w']
+    self.ips_w2 = state['ips_w2']
+    self.ips_n = state['ips_n']
     self.ucb_baseline = state['ucb_baseline']
     self.lcb_w = state['lcb_w']
     self.recompute_bounds = state['recompute_bounds']
 
 
 def __reduce(self):
-    return (SEAPolicy, (self.k, self.d, self.baseline), self.__getstate__())
+    return (SEAPolicy, (self.k, self.d, self.n, self.baseline), self.__getstate__())
 
 
 def __deepcopy(self):
-    return SEAPolicy(self.k, self.d, self.baseline.__deepcopy__(), self.lr,
-                     self.cap, np.copy(self.w), self.confidence, (
-                         self.history[0].__deepcopy__(),
-                         self.history[1].__deepcopy__(),
-                         self.history[2].__deepcopy__(),
-                         self.history[3].__deepcopy__()
-                     ), self.ucb_baseline, self.lcb_w, self.recompute_bounds)
+    return SEAPolicy(self.k, self.d, self.n, self.baseline.__deepcopy__(), self.lr,
+                     self.cap, np.copy(self.w), self.confidence, #(
+                    #      self.history[0].__deepcopy__(),
+                    #      self.history[1].__deepcopy__(),
+                    #      self.history[2].__deepcopy__(),
+                    #      self.history[3].__deepcopy__()
+                    #  ),
+                    np.copy(self.ips_w), np.copy(self.ips_w2), self.ips_n, self.ucb_baseline, self.lcb_w, self.recompute_bounds)
 
 
-def SEAPolicy(k, d, baseline, lr=0.01, cap=0.05, w=None, confidence=0.95, history=None, ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=0, **kw_args):
+def SEAPolicy(k, d, n, baseline, lr=0.01, cap=0.05, w=None, confidence=0.95, ips_w=None, ips_w2=None, ips_n=0, ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=0, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
     if bl_type not in _SEA_POLICY_TYPE_CACHE:
         _SEA_POLICY_TYPE_CACHE[bl_type] = _SEAPolicy(bl_type)
-    history = (
-        GrowingArray(dtype=numba.int32),
-        GrowingArray(dtype=numba.int32),
-        GrowingArray(dtype=numba.float64),
-        GrowingArray(dtype=numba.float64)
-    ) if history is None else history
-    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, lr, cap, baseline, w, confidence, history, ucb_baseline, lcb_w, recompute_bounds)
+    # history = (
+    #     GrowingArray(dtype=numba.int32),
+    #     GrowingArray(dtype=numba.int32),
+    #     GrowingArray(dtype=numba.float64),
+    #     GrowingArray(dtype=numba.float64)
+    # ) if history is None else history
+    ips_w = np.zeros((n, k)) if ips_w is None else ips_w
+    ips_w2 = np.zeros((n, k)) if ips_w2 is None else ips_w2
+    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, n, lr, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds)
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)

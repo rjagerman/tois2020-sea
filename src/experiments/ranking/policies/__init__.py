@@ -6,7 +6,7 @@ from experiments.ranking.policies.sea import SEAPolicy
 _STRATEGY_MAP = {
     'online': lambda d, args: OnlinePolicy(d, args['lr'], args['w']),
     'ips': lambda d, args: IPSPolicy(d, args['lr'], args['baseline'], args['eta'], args['cap'], args['w']),
-    'sea': lambda d, args: SEAPolicy(d, args['lr'], args['baseline'], args['eta'], args['cap'], args['w'])
+    'sea': lambda d, args: SEAPolicy(d, args['pairs'], args['lr'], args['baseline'], args['eta'], args['cap'], args['w'])
 }
 
 def create_policy(strategy, d, **args):

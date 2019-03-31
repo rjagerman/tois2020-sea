@@ -1,7 +1,7 @@
 import numpy as np
 import numba
 from experiments.ranking.util import argsort
-from rulpy.math import grad_hinge
+from rulpy.math import grad_hinge, hinge, grad_additive_dcg
 
 
 _IPS_POLICY_TYPE_CACHE = {}
@@ -29,14 +29,16 @@ def _IPSPolicy(bl_type):
             s = np.dot(x, self.w)
             for i in c:
                 grad = np.zeros(self.w.shape)
+                h = 1.0
                 for j in range(x.shape[0]):
                     f_i = x[r[i], :]
                     f_j = x[r[j], :]
                     s_ij = s[r[i]] - s[r[j]]
+                    h += hinge(s_ij)
                     g = grad_hinge(s_ij)
                     grad += (f_i - f_j) * g
                 propensity = max(self.cap, (1.0 / (i + 1.0)) ** self.eta)
-                self.w -= self.lr * grad * (1.0 / propensity)
+                self.w -= self.lr * grad * grad_additive_dcg(h) * (1.0 / propensity)
 
         def draw(self, x):
             return self.baseline.draw(x)

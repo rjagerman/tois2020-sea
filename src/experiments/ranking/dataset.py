@@ -20,7 +20,7 @@ async def load_train(dataset, seed=0):
     info = datasets[dataset]
     path_prefix = f"Fold{1 + (seed % info['folds'])}" if info['has_folds'] else ""
     file_path = os.path.join(info['path'], path_prefix, 'train.txt')
-    return await load_from_path(file_path, filter_queries=True)
+    return await load_from_path(file_path, filter_queries=False)
 
 
 @task

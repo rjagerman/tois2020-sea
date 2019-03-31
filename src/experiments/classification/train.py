@@ -158,7 +158,7 @@ async def build_policy(config, data, seed):
     train = load_train(data, seed)
     baseline = best_baseline(data, seed)
     train, baseline = await train, await baseline
-    args = {'k': train.k, 'd': train.d, 'baseline': baseline}
+    args = {'k': train.k, 'd': train.d, 'n': train.n, 'baseline': baseline}
     args.update(vars(config))
     return create_policy(**args)
 

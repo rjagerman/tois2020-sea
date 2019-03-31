@@ -34,21 +34,17 @@ def mkdir_if_not_exists(path):
 
 
 @numba.njit(nogil=True)
-def mpeb_bound(confidence, xs):
-    n = xs.shape[0]
+def mpeb_bound(n, confidence, var, maximum):
     C = 1.0 - confidence
-    out = (7 * np.max(xs) * np.log(2.0 / C)) / (3 * (n - 1))
-    # The (2 * n^2) factor below is necessary to accurately get the
-    # MPeB bound when using the numpy variance function.
-    out += (1.0 / n) * np.sqrt(np.log(2.0 / C) / (n - 1) * np.var(xs) * (2.0 * n**2))
+    out = (7 * maximum * np.log(2.0 / C)) / (3 * (n - 1))
+    out += (1.0 / n) * np.sqrt(np.log(2.0 / C) / (n - 1) * var * (2.0 * n**2))
     return out
 
 
 @numba.njit(nogil=True)
-def ch_bound(confidence, xs):
-    n = xs.shape[0]
+def ch_bound(n, confidence, maximum):
     C = 1.0 - confidence
-    return np.max(xs) * np.sqrt(np.log(1.0 / C) / (2*n))
+    return maximum * np.sqrt(np.log(1.0 / C) / (2*n))
 
 
 class NumpyEncoder(json.JSONEncoder):

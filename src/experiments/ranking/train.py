@@ -134,7 +134,7 @@ async def ranking_run(config, data, behavior, points, seed):
     prng = rng_seed(seed)
 
     # Build policy
-    args = {'d': train.d, 'baseline': baseline}
+    args = {'d': train.d, 'pairs': train.pairs, 'baseline': baseline}
     args.update(vars(config))
     if behavior in ['perfect']:
         args['eta'] = 0.0

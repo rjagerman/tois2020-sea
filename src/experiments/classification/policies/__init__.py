@@ -15,7 +15,7 @@ _STRATEGY_MAP = {
     'ips': lambda k, d, args: IPSPolicy(k, d, args['baseline'], args['lr'], args['cap'], args['w']),
     'ucb': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], draw_type=_TYPE_UCB),
     'thompson': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], draw_type=_TYPE_THOMPSON),
-    'sea': lambda k, d, args: SEAPolicy(k, d, args['baseline'], args['lr'], args['cap'], args['w'], args['confidence']),
+    'sea': lambda k, d, args: SEAPolicy(k, d, args['n'], args['baseline'], args['lr'], args['cap'], args['w'], args['confidence']),
 }
 
 def create_policy(strategy, k, d, **args):

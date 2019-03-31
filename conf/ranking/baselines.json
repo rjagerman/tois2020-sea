@@ -1,17 +1,17 @@
 {
     "mslr10k": {
         "lr": 1e-5,
-        "fraction": 0.01,
+        "fraction": 0.001,
         "epochs": 10
     },
     "istella-s": {
         "lr": 0.0001,
-        "fraction": 0.01,
+        "fraction": 0.001,
         "epochs": 10
     },
     "yahoo": {
-        "lr": 1e-5,
-        "fraction": 0.01,
+        "lr": 0.0001,
+        "fraction": 0.001,
         "epochs": 10
     }
 }
