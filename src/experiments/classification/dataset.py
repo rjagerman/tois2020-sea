@@ -105,7 +105,7 @@ async def load_svm_dataset(file_path):
 
 
 @task(use_cache=True)
-async def load(file_path, min_d=0, sample=1.0, seed=0):
+async def load_from_path(file_path, min_d=0, sample=1.0, seed=0):
     xs, ys = await load_svm_dataset(file_path)
     ys = ys.astype(np.int32)
     ys -= np.min(ys)
@@ -128,7 +128,7 @@ async def load_train(dataset, seed=0):
     sample = datasets[dataset]['train']['sample']
     if sample == 1.0:
         seed = 0
-    return await load(train_path, sample=sample, seed=seed)
+    return await load_from_path(train_path, sample=sample, seed=seed)
 
 
 @task
@@ -138,4 +138,4 @@ async def load_test(dataset, seed=0):
     sample = datasets[dataset]['test']['sample']
     if sample == 1.0:
         seed = 0
-    return await load(test_path, min_d=train.d, sample=sample, seed=seed)
+    return await load_from_path(test_path, min_d=train.d, sample=sample, seed=seed)

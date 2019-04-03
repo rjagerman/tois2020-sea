@@ -21,7 +21,7 @@ from ltrpy.clicks.cascading import informational_5
 
 
 def main():
-    logging.basicConfig(format="[%(asctime)s] %(levelname)s %(threadName)s: %(message)s",
+    logging.basicConfig(format="[%(asctime)s] %(levelname)s %(threadName)-23s: %(message)s",
                         level=logging.INFO)
     cli_parser = ArgumentParser()
     cli_parser.add_argument("-c", "--config", type=str, required=True)

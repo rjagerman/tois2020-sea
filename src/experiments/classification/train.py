@@ -17,7 +17,7 @@ from experiments.util import rng_seed, get_evaluation_points, mkdir_if_not_exist
 
 
 def main():
-    logging.basicConfig(format="[%(asctime)s] %(levelname)s %(threadName)s: %(message)s",
+    logging.basicConfig(format="[%(asctime)s] %(levelname)s %(threadName)-23s: %(message)s",
                         level=logging.INFO)
     cli_parser = ArgumentParser()
     cli_parser.add_argument("-c", "--config", type=str, required=True)
@@ -79,12 +79,21 @@ def main():
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
     if args.eval_scale == 'log':
         ax.set_xscale('symlog')
-        locmin = matplotlib.ticker.LogLocator(base=10.0, subs=np.linspace(0.1, 1.0, 10)) 
+        locmin = matplotlib.ticker.SymmetricalLogLocator(base=10.0, subs=np.linspace(1.0, 10.0, 10), linthresh=1.0) 
         ax.xaxis.set_minor_locator(locmin)
         ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+        scalar_formatter = matplotlib.ticker.ScalarFormatter()
+        log_formatter = matplotlib.ticker.LogFormatterSciNotation(linthresh=1.0)
+        def smart_formatter(x, p):
+            if x in [1.0, 0.0]:
+                return scalar_formatter.format_data(x)
+            else:
+                return log_formatter.format_data(x)
+        func_formatter = matplotlib.ticker.FuncFormatter(smart_formatter)
+        ax.xaxis.set_major_formatter(func_formatter)
     ax.set_xlabel('Time $t$')
     ax.set_ylabel('Reward $r \in [0, 1]$')
-    ax.set_ylim([0.0, 1.0])
+    #ax.set_ylim([0.0, 1.0])
     ax.legend()
     mkdir_if_not_exists(f"plots/{args.output}.pdf")
     fig.savefig(f"plots/{args.output}.pdf")
@@ -180,7 +189,7 @@ def log_progress(index, points, out, policy, config, seed):
     bounds = ""
     if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
         bounds = f" :: {policy.lcb_w:.6f} ?> {policy.ucb_baseline:.6f}"
-    logging.info(f"[{points[index]:7d}, {seed}] {config.strategy}: {out['deploy'][index]:.4f} (stochastic) {out['learned'][index]:.4f} (deterministic) {bounds}")
+    logging.info(f"[{points[index]:7d}, {seed}] {config.strategy}: {out['deploy'][index]:.4f} (deploy) {out['learned'][index]:.4f} (learned) {bounds}")
 
 
 if __name__ == "__main__":
