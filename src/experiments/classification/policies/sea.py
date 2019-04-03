@@ -147,17 +147,6 @@ def _SEAPolicy(bl_type):
             
             # self.ucb_baseline = np.mean(x_baseline) + self._mpeb_bound(x_baseline)
             # self.lcb_w = np.mean(x_new) - self._mpeb_bound(x_new)
-        
-        def _mpeb_bound(self, n, var, maximum):
-            C = 1.0 - self.confidence
-            out = (7 * maximum * np.log(2.0 / C)) / (3 * (n - 1))
-            out += (1.0 / n) * np.sqrt(np.log(2.0 / C) / (n - 1) * var * (2.0 * n**2))
-            return out
-
-        def _ch_bound(self, xs):
-            n = xs.shape[0]
-            C = 1.0 - self.confidence
-            return np.max(xs) * np.sqrt(np.log(1.0 / C) / (2*n))
 
         def draw(self, x):
             return self.baseline.draw(x)

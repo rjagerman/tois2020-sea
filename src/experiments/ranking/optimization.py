@@ -1,6 +1,7 @@
 import numpy as np
 import numba
 from rulpy.math import grad_hinge
+from ltrpy.evaluation import ndcg
 
 
 @numba.njit(nogil=True)
@@ -19,9 +20,12 @@ def optimize_supervised(train, indices, policy, lr, epochs):
 
 @numba.njit(nogil=True)
 def optimize(train, indices, policy, behavior):
+    regret = 0.0
     for i in indices:
         x, y, q = train.get(i)
         r = policy.draw(x)
+        regret += (1.0 - ndcg(r, y)[:10][-1])
         c = behavior.simulate(r, y)
         cc = np.where(c > 0)[0]
         policy.update(train, i, r, cc)
+    return regret

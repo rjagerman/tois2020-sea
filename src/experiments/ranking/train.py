@@ -38,6 +38,7 @@ def main():
 
     parser = ArgumentParser()
     parser.add_argument("--strategy", type=str, default='online')
+    parser.add_argument("--cold", action='store_true')
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--cap", type=float, default=0.01)
     parser.add_argument("--confidence", type=float, default=0.95)
@@ -60,8 +61,11 @@ def main():
         json.dump(js_results, f, cls=NumpyEncoder)
 
     # Print results
-    for result, config in sorted(zip(results, configs), key=lambda e: e[0]['learned']['conf'][0][-1], reverse=True):
-        logging.info(f"{args.dataset} {args.behavior} {config.strategy} ({config.lr}): {result['learned']['mean'][-1]:.5f} +/- {result['learned']['std'][-1]:.5f} => {result['learned']['conf'][0][-1]:.5f}")
+    for metric in ["learned", "deploy", "regret"]:
+        bound = 1 if metric == 'regret' else 0
+        reverse = False if metric == 'regret' else True
+        for result, config in sorted(zip(results, configs), key=lambda e: e[0][metric]['conf'][bound][-1], reverse=reverse):
+            logging.info(f"{args.dataset} {args.behavior} {config.strategy} ({config.lr}): {result[metric]['mean'][-1]:.5f} +/- {result[metric]['std'][-1]:.5f} => {result[metric]['conf'][bound][-1]:.5f}")
 
     # Create plot
     fig, ax = plt.subplots()
@@ -74,6 +78,9 @@ def main():
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
     if args.eval_scale == 'log':
         ax.set_xscale('symlog')
+        locmin = matplotlib.ticker.LogLocator(base=10.0, subs=np.linspace(0.1, 1.0, 10))
+        ax.xaxis.set_minor_locator(locmin)
+        ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
     ax.set_xlabel('Time $t$')
     ax.set_ylabel('ndcg@10')
     ax.legend()
@@ -93,11 +100,15 @@ async def run_experiment(config, data, behavior, repeats, iterations, evaluation
         results.append(ranking_run(config, data, behavior, points, seed))
 
     # Await results to finish computing
-    results = [await r for r in results]
+    final_results = [await r for r in results]
     results = {
-        "deploy": np.vstack([r["deploy"] for r in results]),
-        "learned": np.vstack([r["learned"] for r in results])
+        "deploy": np.vstack([r["deploy"] for r in final_results]),
+        "learned": np.vstack([r["learned"] for r in final_results]),
+        "regret": np.vstack([r["regret"] for r in final_results])
     }
+    if "ucb_b" in final_results[0].keys() and "lcb_w" in final_results[0].keys():
+        results["ucb_b"] = np.vstack([r["ucb_b"] for r in final_results])
+        results["lcb_w"] = np.vstack([r["lcb_w"] for r in final_results])
 
     # Compute aggregate statistics from results
     out = {
@@ -127,20 +138,27 @@ async def ranking_run(config, data, behavior, points, seed):
     # Data structure to hold output results
     out = {
         'deploy': np.zeros(len(points)),
-        'learned': np.zeros(len(points))
+        'learned': np.zeros(len(points)),
+        'regret': np.zeros(len(points))
     }
 
     # Seed randomness
     prng = rng_seed(seed)
 
     # Build policy
-    args = {'d': train.d, 'pairs': train.pairs, 'baseline': baseline}
+    args = {'d': train.d, 'pairs': train.pairs, 'baseline': baseline.__deepcopy__()}
     args.update(vars(config))
     if behavior in ['perfect']:
         args['eta'] = 0.0
     else:
         args['eta'] = 1.0
+    if not config.cold:
+        args['w'] = np.copy(baseline.w)
     policy = create_policy(**args)
+
+    if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
+        out['ucb_b'] = np.zeros(len(points))
+        out['lcb_w'] = np.zeros(len(points))
 
     # Build behavior model
     click_model = build_click_model(behavior)
@@ -156,8 +174,10 @@ async def ranking_run(config, data, behavior, points, seed):
     for i in range(1, len(points)):
         start = points[i - 1]
         end = points[i]
-        optimize(train, indices[start:end], policy, click_model)
+        out['regret'][i] = out['regret'][i - 1] + optimize(train, indices[start:end], policy, click_model)
         out['deploy'][i], out['learned'][i] = evaluate(test, policy)
+        if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
+            out['ucb_b'], out['lcb_w'] = policy.ucb_baseline, policy.lcb_w
         log_progress(i, points, seed, data, behavior, config, out, policy)
 
     return out

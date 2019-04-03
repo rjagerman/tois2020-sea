@@ -52,11 +52,11 @@ def __setstate(self, state):
 
 
 def __reduce(self):
-    return (Online, (self.d, self.lr, self.w))
+    return (OnlinePolicy, (self.d, self.lr, self.w))
 
 
 def __deepcopy(self):
-    return Online(self.d, self.lr, np.copy(self.w))
+    return OnlinePolicy(self.d, self.lr, np.copy(self.w))
 
 
 def OnlinePolicy(d, lr, w=None):

@@ -33,6 +33,7 @@ def main():
 
     parser = ArgumentParser()
     parser.add_argument("--strategy", type=str, default='epsgreedy')
+    parser.add_argument("--cold", action='store_true')
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--l2", type=float, default=1.0)
     parser.add_argument("--eps", type=float, default=0.1)
@@ -58,22 +59,29 @@ def main():
         json.dump(js_results, f, cls=NumpyEncoder)
     
     # Print results
-    for result, config in sorted(zip(results, configs), key=lambda e: e[0]['model']['conf'][0][-1], reverse=True):
-        model_res = f"{result['model']['mean'][-1]:.4f} +/- {result['model']['std'][-1]:.4f} => {result['model']['conf'][0][-1]:.4f}"
-        explore_res = f"{result['explore']['mean'][-1]:.4f} +/- {result['explore']['std'][-1]:.4f} => {result['explore']['conf'][0][-1]:.4f}"
-        logging.info(f"{config.strategy} ({config.lr}) = {model_res} (model)   {explore_res} (explore)")
+    for metric in ['learned', 'deploy', 'regret']:
+        bound = 1 if metric == 'regret' else 0
+        reverse = False if metric == 'regret' else True
+        for result, config in sorted(zip(results, configs), key=lambda e: e[0][metric]['conf'][bound][-1], reverse=reverse):
+            tune_p = config.lr
+            if config.strategy in ["ucb", "thompson"]:
+                tune_p = config.l2        
+            logging.info(f"{args.dataset} {config.strategy} ({tune_p}) = {metric}: {result[metric]['mean'][-1]:.4f} +/- {result[metric]['std'][-1]:.4f} => {result[metric]['conf'][bound][-1]:.4f}")
 
     # Create plot
     fig, ax = plt.subplots()
     for config, result in zip(configs, results):
         label = f"{config.strategy} ({config.lr})" if config.label is None else config.label
         x = result['x']
-        y = result['model']['mean']
-        y_std = result['model']['std']
+        y = result['learned']['mean']
+        y_std = result['learned']['std']
         ax.plot(x, y, label=label)
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
     if args.eval_scale == 'log':
         ax.set_xscale('symlog')
+        locmin = matplotlib.ticker.LogLocator(base=10.0, subs=np.linspace(0.1, 1.0, 10)) 
+        ax.xaxis.set_minor_locator(locmin)
+        ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
     ax.set_xlabel('Time $t$')
     ax.set_ylabel('Reward $r \in [0, 1]$')
     ax.set_ylim([0.0, 1.0])
@@ -98,8 +106,9 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
 
     # Combine results with different seeded repeats
     results = {
-        "model": np.vstack([x["model"] for x in results]),
-        "explore": np.vstack([x["explore"] for x in results])
+        "learned": np.vstack([x["learned"] for x in results]),
+        "deploy": np.vstack([x["deploy"] for x in results]),
+        "regret": np.vstack([x["regret"] for x in results])
     }
 
     # Compute aggregate statistics from results
@@ -130,8 +139,9 @@ async def classification_run(config, data, points, seed):
 
     # Data structure to hold output results
     out = {
-        'explore': np.zeros(len(points)),
-        'model': np.zeros(len(points))
+        'deploy': np.zeros(len(points)),
+        'learned': np.zeros(len(points)),
+        'regret': np.zeros(len(points))
     }
 
     # Generate training indices and seed randomness
@@ -139,15 +149,16 @@ async def classification_run(config, data, points, seed):
     indices = prng.randint(0, train.n, np.max(points))
 
     # Evaluate on point 0
-    out['explore'][0], out['model'][0] = evaluate(test, policy)
+    out['deploy'][0], out['learned'][0] = evaluate(test, policy)
+    out['regret'][0] = 0.0
     log_progress(0, points, out, policy, config, seed)
 
     # Train and evaluate at specified points
     for i in range(1, len(points)):
         start = points[i - 1]
         end = points[i]
-        optimize(train, indices[start:end], policy)
-        out['explore'][i], out['model'][i] = evaluate(test, policy)
+        out['regret'][i] = out['regret'][i - 1] + optimize(train, indices[start:end], policy)
+        out['deploy'][i], out['learned'][i] = evaluate(test, policy)
         log_progress(i, points, out, policy, config, seed)
     
     return out
@@ -160,14 +171,16 @@ async def build_policy(config, data, seed):
     train, baseline = await train, await baseline
     args = {'k': train.k, 'd': train.d, 'n': train.n, 'baseline': baseline}
     args.update(vars(config))
+    if not config.cold:
+        args['w'] = np.copy(baseline.w)
     return create_policy(**args)
 
 
 def log_progress(index, points, out, policy, config, seed):
     bounds = ""
     if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
-        bounds = f" :: {policy.ucb_baseline:.6f} <> {policy.lcb_w:.6f}"
-    logging.info(f"[{points[index]:7d}, {seed}] {config.strategy}: {out['explore'][index]:.4f} (stochastic) {out['model'][index]:.4f} (deterministic) {bounds}")
+        bounds = f" :: {policy.lcb_w:.6f} ?> {policy.ucb_baseline:.6f}"
+    logging.info(f"[{points[index]:7d}, {seed}] {config.strategy}: {out['deploy'][index]:.4f} (stochastic) {out['learned'][index]:.4f} (deterministic) {bounds}")
 
 
 if __name__ == "__main__":

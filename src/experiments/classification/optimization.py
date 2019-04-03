@@ -23,8 +23,11 @@ def optimize_supervised_hinge(train, indices, model, lr, epochs):
 
 @numba.njit(nogil=True)
 def optimize(train, indices, policy):
+    regret = 0.0
     for index in indices:
         x, y = train.get(index)
         a = policy.draw(x)
         r = reward(x, y, a)
+        regret += (1.0 - r)
         policy.update(train, index, a, r)
+    return regret
