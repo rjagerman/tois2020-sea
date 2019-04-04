@@ -160,7 +160,7 @@ async def classification_run(config, data, points, seed):
     # Evaluate on point 0
     out['deploy'][0], out['learned'][0] = evaluate(test, policy)
     out['regret'][0] = 0.0
-    log_progress(0, points, out, policy, config, seed)
+    log_progress(0, points, data, out, policy, config, seed)
 
     # Train and evaluate at specified points
     for i in range(1, len(points)):
@@ -168,7 +168,7 @@ async def classification_run(config, data, points, seed):
         end = points[i]
         out['regret'][i] = out['regret'][i - 1] + optimize(train, indices[start:end], policy)
         out['deploy'][i], out['learned'][i] = evaluate(test, policy)
-        log_progress(i, points, out, policy, config, seed)
+        log_progress(i, points, data, out, policy, config, seed)
     
     return out
 
@@ -185,11 +185,12 @@ async def build_policy(config, data, seed):
     return create_policy(**args)
 
 
-def log_progress(index, points, out, policy, config, seed):
+def log_progress(index, points, data, out, policy, config, seed):
     bounds = ""
     if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
         bounds = f" :: {policy.lcb_w:.6f} ?> {policy.ucb_baseline:.6f}"
-    logging.info(f"[{points[index]:7d}, {seed}] {config.strategy}: {out['deploy'][index]:.4f} (deploy) {out['learned'][index]:.4f} (learned) {bounds}")
+    tune = config.l2 if config.strategy in ["ucb", "thompson"] else config.lr
+    logging.info(f"[{seed}, {points[index]:7d}] {data} {config.strategy} ({tune}): {out['deploy'][index]:.4f} (deploy) {out['learned'][index]:.4f} (learned) {bounds}")
 
 
 if __name__ == "__main__":
