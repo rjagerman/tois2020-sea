@@ -19,10 +19,10 @@ class _GreedyPolicy:
     def update(self, dataset, index, a, r):
         x, _ = dataset.get(index)
         s = x.dot(self.w[:, a])
+        loss = s - r # square loss reward compared to score (predicted reward)
         for i in range(x.nnz):
             col = x.indices[i]
             val = x.data[i]
-            loss = s - r # square loss reward compared to score (predicted reward)
             self.w[col, a] -= self.lr * val * loss
     
     def draw(self, x):

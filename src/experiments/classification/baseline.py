@@ -5,8 +5,9 @@ from joblib.memory import Memory
 from scipy import stats as st
 from argparse import ArgumentParser
 from rulpy.pipeline.task_executor import task, TaskExecutor
-from experiments.classification.policies import EpsgreedyPolicy
-from experiments.classification.optimization import optimize_supervised_hinge
+from experiments.classification.policies import EpsgreedyPolicy, StatisticalPolicy
+from experiments.classification.policies.statistical import TYPE_THOMPSON, TYPE_UCB
+from experiments.classification.optimization import optimize_supervised_hinge, optimize_supervised_ridge
 from experiments.classification.dataset import load_train, load_test
 from experiments.classification.evaluation import evaluate
 from experiments.util import rng_seed
@@ -106,6 +107,25 @@ async def best_baseline(data, seed):
     with open("conf/classification/baselines.json", "rt") as f:
         baselines = json.load(f)
     return await train_baseline(data, seed=seed, **baselines[data])
+
+
+@task
+async def statistical_baseline(data, seed, strategy):
+    with open("conf/classification/baselines.json", "rt") as f:
+        baselines = json.load(f)
+    fraction = baselines[data]['fraction']
+    train = await load_train(data, seed)
+    draw_type = {
+        'ucb': TYPE_UCB,
+        'thompson': TYPE_THOMPSON
+    }[strategy]
+    policy = StatisticalPolicy(train.k, train.d, draw_type=draw_type)
+    baseline_size = int(fraction * train.n)
+    prng = rng_seed(seed)
+    indices = prng.permutation(train.n)[0:baseline_size]
+    logging.info(f"[{seed}] training ridge regression baseline (size: {baseline_size}, weights:{train.d * train.k})")
+    optimize_supervised_ridge(train, indices, policy, baselines[data]['epochs'])
+    return policy
 
 
 if __name__ == "__main__":

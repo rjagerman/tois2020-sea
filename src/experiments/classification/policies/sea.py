@@ -64,10 +64,10 @@ def _SEAPolicy(bl_type):
             p = max(self.cap, self.probability(x, a))
             s = x.dot(self.w)
             g = grad_softmax(s)
+            loss = 0.5 - r # advantage loss
             for i in range(x.nnz):
                 col = x.indices[i]
                 val = x.data[i]
-                loss = 0.5 - r # advantage loss
                 self.w[col, a] -= self.lr * val * g[a] * loss / p
             self._record_history(index, a, r, p)
             self.recompute_bounds += 1

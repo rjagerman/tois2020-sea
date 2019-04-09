@@ -11,7 +11,7 @@ from rulpy.pipeline import task, TaskExecutor
 from experiments.classification.policies import create_policy
 from experiments.classification.optimization import optimize
 from experiments.classification.evaluation import evaluate
-from experiments.classification.baseline import best_baseline
+from experiments.classification.baseline import best_baseline, statistical_baseline
 from experiments.classification.dataset import load_train, load_test
 from experiments.util import rng_seed, get_evaluation_points, mkdir_if_not_exists, NumpyEncoder
 
@@ -176,8 +176,13 @@ async def classification_run(config, data, points, seed):
 @task
 async def build_policy(config, data, seed):
     train = load_train(data, seed)
-    baseline = best_baseline(data, seed)
+    if config.strategy in ['ucb', 'thompson']:
+        baseline = statistical_baseline(data, seed, config.strategy)
+    else:
+        baseline = best_baseline(data, seed)
     train, baseline = await train, await baseline
+    if not config.cold and config.strategy in ['ucb', 'thompson']:
+        return baseline.__deepcopy__()
     args = {'k': train.k, 'd': train.d, 'n': train.n, 'baseline': baseline}
     args.update(vars(config))
     if not config.cold:
