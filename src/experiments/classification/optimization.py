@@ -22,7 +22,7 @@ def optimize_supervised_hinge(train, indices, model, lr, epochs):
 
 
 @numba.njit(nogil=True)
-def optimize_supervised_ridge(train, indices, policy, epochs):
+def optimize_supervised_ridge(train, indices, policy, epochs=1):
     for e in range(epochs):
         for i in indices:
             x, y = train.get(i)
@@ -30,7 +30,9 @@ def optimize_supervised_ridge(train, indices, policy, epochs):
                 r = 0.0
                 if j == y:
                     r = 1.0
-                policy.update(train, i, j, r)
+                policy.update(train, i, j, r, update_w=False)
+    for i in range(train.k):
+        policy.update_w(i)
 
 
 @numba.njit(nogil=True)

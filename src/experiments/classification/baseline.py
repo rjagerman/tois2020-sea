@@ -119,12 +119,12 @@ async def statistical_baseline(data, seed, strategy):
         'ucb': TYPE_UCB,
         'thompson': TYPE_THOMPSON
     }[strategy]
-    policy = StatisticalPolicy(train.k, train.d, draw_type=draw_type)
+    policy = StatisticalPolicy(train.k, train.d, l2=0.0001, draw_type=draw_type)
     baseline_size = int(fraction * train.n)
     prng = rng_seed(seed)
     indices = prng.permutation(train.n)[0:baseline_size]
     logging.info(f"[{seed}] training ridge regression baseline (size: {baseline_size}, weights:{train.d * train.k})")
-    optimize_supervised_ridge(train, indices, policy, baselines[data]['epochs'])
+    optimize_supervised_ridge(train, indices, policy)
     return policy
 
 
