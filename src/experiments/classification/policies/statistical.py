@@ -82,7 +82,7 @@ class _StatisticalPolicy:
     
     def _draw_ucb(self, x):
         s = np.dot(x, self.w) + self.alpha * self._bound(x)
-        s = np.minimum(1.0, s)
+        #s = np.minimum(1.0, s)
         return argmax(s)
 
     def _draw_thompson(self, x):
