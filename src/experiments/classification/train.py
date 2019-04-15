@@ -182,7 +182,9 @@ async def build_policy(config, data, seed):
         baseline = best_baseline(data, seed)
     train, baseline = await train, await baseline
     if not config.cold and config.strategy in ['ucb', 'thompson']:
-        return baseline.__deepcopy__()
+        out = baseline.__deepcopy__()
+        out.alpha = config.alpha
+        return out
     args = {'k': train.k, 'd': train.d, 'n': train.n, 'baseline': baseline}
     args.update(vars(config))
     if not config.cold:

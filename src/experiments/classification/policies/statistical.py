@@ -44,8 +44,8 @@ class _StatisticalPolicy:
         x, _ = train.get(index)
         xd = x.to_dense()
         x2 = xd.reshape((xd.shape[0], 1))
-        self.A[a, :, :] = self.A[a, :, :] + (x2 @ x2.T)
-        self.b[a, :] = self.b[a, :] + (xd * r)
+        self.A[a, :, :] += x2 @ x2.T
+        self.b[a, :] += xd * r
         if update_w:
             num = ((self.A_inv[a, :, :] @ x2) @ x2.T) @ self.A_inv[a, :, :]
             den = ((x2.T @ self.A_inv[a, :, :]) @ x2) + 1.0

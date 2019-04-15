@@ -26,7 +26,7 @@ def create_policy(strategy, k, d, **args):
         'eps': 0.05,
         'tau': 1.0,
         'cap': 0.05,
-        'delta': 0.95,
+        'alpha': 1.0,
         'confidence': 0.95
     }
     defaults.update(args)
