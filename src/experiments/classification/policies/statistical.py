@@ -30,7 +30,7 @@ class _StatisticalPolicy:
         self.d = d
         self.l2 = l2
         self.delta = delta
-        self.alpha = 1.0 + np.sqrt(np.log(2.0 / delta) / 2.0)
+        self.alpha = delta #1.0 + np.sqrt(np.log(2.0 / delta) / 2.0)
         self.t = t
         self.w = w
         self.b = b
