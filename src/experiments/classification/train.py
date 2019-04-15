@@ -194,7 +194,7 @@ def log_progress(index, points, data, out, policy, config, seed):
     bounds = ""
     if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
         bounds = f" :: {policy.lcb_w:.6f} ?> {policy.ucb_baseline:.6f}"
-    tune = config.l2 if config.strategy in ["ucb", "thompson"] else config.lr
+    tune = config.alpha if config.strategy in ["ucb", "thompson"] else config.lr
     logging.info(f"[{seed}, {points[index]:7d}] {data} {config.strategy} ({tune}): {out['deploy'][index]:.4f} (deploy) {out['learned'][index]:.4f} (learned) {bounds}")
 
 
