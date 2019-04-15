@@ -25,12 +25,12 @@ TYPE_THOMPSON = 1
     ('draw_type', numba.int32)
 ])
 class _StatisticalPolicy:
-    def __init__(self, k, d, l2, delta, t, w, b, A, A_inv, cho, recompute, draw_type):
+    def __init__(self, k, d, l2, alpha, t, w, b, A, A_inv, cho, recompute, draw_type):
         self.k = k
         self.d = d
         self.l2 = l2
-        self.delta = delta
-        self.alpha = delta #1.0 + np.sqrt(np.log(2.0 / delta) / 2.0)
+        self.delta = alpha
+        self.alpha = alpha #delta #1.0 + np.sqrt(np.log(2.0 / delta) / 2.0)
         self.t = t
         self.w = w
         self.b = b
@@ -172,13 +172,13 @@ def __reduce(self):
 
 
 def __deepcopy(self):
-    return StatisticalPolicy(self.k, self.d, self.l2, self.delta, self.t,
+    return StatisticalPolicy(self.k, self.d, self.l2, self.alpha, self.t,
                              np.copy(self.w), np.copy(self.b), np.copy(self.A),
                              np.copy(self.A_inv), np.copy(self.cho),
                              np.copy(self.recompute), self.draw_type)
 
 
-def StatisticalPolicy(k, d, l2=1.0, delta=0.95, t=0, w=None, b=None, A=None, A_inv=None,
+def StatisticalPolicy(k, d, l2=1.0, alpha=1.0, t=0, w=None, b=None, A=None, A_inv=None,
                       cho=None, recompute=None, draw_type=TYPE_UCB, **kw_args):
     w = np.zeros((d, k), dtype=np.float64) if w is None else w
     b = np.zeros((k, d), dtype=np.float64) if b is None else b
@@ -186,7 +186,7 @@ def StatisticalPolicy(k, d, l2=1.0, delta=0.95, t=0, w=None, b=None, A=None, A_i
     A_inv = np.stack([np.identity(d, dtype=np.float64) / l2 for _ in range(k)]) if A_inv is None else A_inv
     cho = np.stack([np.zeros((d,d), dtype=np.float64) for _ in range(k)]) if cho is None else cho
     recompute = np.zeros(k, dtype=np.bool) if recompute is None else recompute
-    out = _StatisticalPolicy(k, d, l2, delta, t, w, b, A, A_inv, cho, recompute, draw_type)
+    out = _StatisticalPolicy(k, d, l2, alpha, t, w, b, A, A_inv, cho, recompute, draw_type)
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)

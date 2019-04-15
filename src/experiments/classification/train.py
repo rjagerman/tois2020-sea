@@ -65,7 +65,7 @@ def main():
         for result, config in sorted(zip(results, configs), key=lambda e: e[0][metric]['conf'][bound][-1], reverse=reverse):
             tune_p = config.lr
             if config.strategy in ["ucb", "thompson"]:
-                tune_p = config.l2        
+                tune_p = config.alpha
             logging.info(f"{args.dataset} {config.strategy} ({tune_p}) = {metric}: {result[metric]['mean'][-1]:.4f} +/- {result[metric]['std'][-1]:.4f} => {result[metric]['conf'][bound][-1]:.4f}")
 
     # Create plot
