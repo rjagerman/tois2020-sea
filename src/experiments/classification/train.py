@@ -189,6 +189,8 @@ async def build_policy(config, data, seed):
     args.update(vars(config))
     if not config.cold:
         args['w'] = np.copy(baseline.w)
+    if not config.cold and args['tau'] == 1.0 and args.strategy == 'boltzmann':
+        args['tau'] = baseline.tau
     return create_policy(**args)
 
 
