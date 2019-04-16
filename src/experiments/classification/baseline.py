@@ -5,7 +5,7 @@ from joblib.memory import Memory
 from scipy import stats as st
 from argparse import ArgumentParser
 from rulpy.pipeline.task_executor import task, TaskExecutor
-from experiments.classification.policies import EpsgreedyPolicy, StatisticalPolicy
+from experiments.classification.policies import EpsgreedyPolicy, StatisticalPolicy, BoltzmannPolicy
 from experiments.classification.policies.statistical import TYPE_THOMPSON, TYPE_UCB
 from experiments.classification.optimization import optimize_supervised_hinge, optimize_supervised_ridge
 from experiments.classification.dataset import load_train, load_test
@@ -61,16 +61,17 @@ def main():
     for r in sorted(results, key=lambda e: e['performance']['policy']['conf'][0], reverse=True):
         policy = r['performance']['policy']
         best = r['performance']['best']
-        logging.info(f"eps={r['eps']} lr={r['lr']} :: {policy['mean']:.5f} +/- {policy['std']:.5f} -> {policy['conf'][0]:.5f} (95% LCB)")
+        logging.info(f"eps={r['eps']} tau={r['tau']} lr={r['lr']} :: {policy['mean']:.5f} +/- {policy['std']:.5f} -> {policy['conf'][0]:.5f} (95% LCB)")
 
 
 @task(use_cache=True)
-async def evaluate_config(data, lr, fraction, epochs, eps, repeats):
+async def evaluate_config(data, lr, fraction, epochs, eps, tau, repeats):
     results = {
         'eps': eps,
+        'tau': tau,
         'lr': lr,
         'performance': [
-            evaluate_baseline(data, lr, fraction, epochs, eps, seed)
+            evaluate_baseline(data, lr, fraction, epochs, eps, tau, seed)
             for seed in range(4200, 4200 + repeats)
         ]
     }
@@ -79,9 +80,9 @@ async def evaluate_config(data, lr, fraction, epochs, eps, repeats):
 
 
 @task(use_cache=True)
-async def evaluate_baseline(data, lr, fraction, epochs, eps, seed):
+async def evaluate_baseline(data, lr, fraction, epochs, eps, tau, seed):
     test = load_test(data, seed)
-    baseline = train_baseline(data, lr, fraction, epochs, eps, seed)
+    baseline = train_baseline(data, lr, fraction, epochs, eps, tau, seed)
     test, baseline = await test, await baseline
     baseline = baseline.__deepcopy__()
     rng_seed(seed)
@@ -91,9 +92,10 @@ async def evaluate_baseline(data, lr, fraction, epochs, eps, seed):
 
 
 @task(use_cache=True)
-async def train_baseline(data, lr, fraction, epochs, eps, seed):
+async def train_baseline(data, lr, fraction, epochs, eps, tau, seed):
     train = await load_train(data)
-    policy = EpsgreedyPolicy(train.k, train.d, lr=lr, eps=eps)
+    #policy = EpsgreedyPolicy(train.k, train.d, lr=lr, eps=eps)
+    policy = BoltzmannPolicy(train.k, train.d, lr=lr, tau=tau)
     baseline_size = int(fraction * train.n)
     prng = rng_seed(seed)
     indices = prng.permutation(train.n)[0:baseline_size]

@@ -63,12 +63,16 @@ def _SEAPolicy(bl_type):
             x, _ = dataset.get(index)
             p = max(self.cap, self.probability(x, a))
             s = x.dot(self.w)
+            sm = softmax(s / self.baseline.tau)
+            #sma = softmax(s / self.baseline.tau)[a]
             g = grad_softmax(s)
-            loss = 0.5 - r # advantage loss
+            loss = ((1.0 -r) - 0.8) / p # lambda-ips loss
             for i in range(x.nnz):
                 col = x.indices[i]
                 val = x.data[i]
-                self.w[col, a] -= self.lr * val * g[a] * loss / p
+                for aprime in range(self.k):
+                    kronecker = 1.0 if aprime == a else 0.0
+                    self.w[col, aprime] -= self.lr * (val / self.baseline.tau) * loss * sm[aprime] * (kronecker - sm[a])
             self._record_history(index, a, r, p)
             self.recompute_bounds += 1
             if self.recompute_bounds >= 1000:
@@ -106,8 +110,7 @@ def _SEAPolicy(bl_type):
                     if self.ips_w[index, a] != 0.0:
                         x, _ = dataset.get(index)
                         s = x.dot(self.w)
-                        sa = 1.0 * (argmax(s) == a)
-                        new_p = sa * (1 - 0.05) + 0.05 * (1.0 / self.k)
+                        new_p = softmax(s / self.baseline.tau)[a]
                         baseline_p = self.baseline.probability(x, a)
                         new_sum_mean += new_p * self.ips_w[index, a]
                         new_sum_var += new_p**2 * self.ips_w2[index, a]
@@ -123,7 +126,7 @@ def _SEAPolicy(bl_type):
 
             self.ucb_baseline = baseline_mean + mpeb_bound(self.ips_n, self.confidence, baseline_var, baseline_max)
             self.lcb_w = new_mean - mpeb_bound(self.ips_n, self.confidence, new_var, new_max)
-                        
+
             # n = self.history[1].size
 
             # x_new = np.zeros(n)

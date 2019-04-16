@@ -1,7 +1,7 @@
 import numpy as np
 import numba
 from experiments.classification.policies.util import init_weights, argmax
-from rulpy.math import grad_softmax, log_softmax, grad_log_softmax
+from rulpy.math import softmax, grad_softmax, log_softmax, grad_log_softmax
 
 
 _IPS_POLICY_TYPE_CACHE = {}
@@ -28,12 +28,14 @@ def _IPSPolicy(bl_type):
             x, _ = dataset.get(index)
             p = max(self.cap, self.probability(x, a))
             s = x.dot(self.w)
-            g = grad_softmax(s)
-            loss = 0.5 - r # advantage loss
+            sm = softmax(s / self.baseline.tau)
+            loss = ((1.0 -r) - 0.8) / p # lambda-ips loss
             for i in range(x.nnz):
                 col = x.indices[i]
                 val = x.data[i]
-                self.w[col, a] -= self.lr * val * g[a] * loss / p
+                for aprime in range(self.k):
+                    kronecker = 1.0 if aprime == a else 0.0
+                    self.w[col, aprime] -= self.lr * (val / self.baseline.tau) * loss * sm[aprime] * (kronecker - sm[a])
             # ips = 1.0 / max(self.cap, self.probability(x, a))
             # s = x.dot(self.w)
             # g = grad_softmax(s)

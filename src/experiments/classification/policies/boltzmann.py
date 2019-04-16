@@ -22,12 +22,14 @@ class _BoltzmannPolicy:
     def update(self, dataset, index, a, r):
         x, _ = dataset.get(index)
         s = x.dot(self.w)
-        g = grad_softmax(s / self.tau)
-        loss = 0.5 - r # advantage loss
+        sm = softmax(s / self.tau)
+        loss = -r # turn reward into loss
         for i in range(x.nnz):
             col = x.indices[i]
             val = x.data[i]
-            self.w[col, a] -= self.lr * val * g[a] * loss
+            for aprime in range(self.k):
+                kronecker = 1.0 if aprime == a else 0.0
+                self.w[col, aprime] -= self.lr * (val / self.tau) * loss * sm[aprime] * (kronecker - sm[a])
     
     def draw(self, x):
         s = x.dot(self.w)
@@ -42,11 +44,11 @@ class _BoltzmannPolicy:
     
     def probability(self, x, a):
         s = x.dot(self.w)
-        return softmax(s)[a]
+        return softmax(s / self.tau)[a]
 
     def log_probability(self, x, a):
         s = x.dot(self.w)
-        return log_softmax(s)[a]
+        return log_softmax(s / self.tau)[a]
 
 
 def __getstate(self):
