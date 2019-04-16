@@ -1,18 +1,21 @@
 {
     "usps": {
         "eps": 0.05,
+        "tau": 0.5,
         "lr": 0.001,
         "fraction": 0.01,
         "epochs": 10
     },
     "news20": {
         "eps": 0.05,
+        "tau": 0.02,
         "lr": 0.01,
         "fraction": 0.01,
         "epochs": 10
     },
     "rcv1": {
         "eps": 0.05,
+        "tau": 0.1,
         "lr": 0.1,
         "fraction": 0.01,
         "epochs": 10
