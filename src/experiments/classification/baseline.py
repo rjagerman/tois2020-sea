@@ -112,7 +112,7 @@ async def best_baseline(data, seed):
 
 
 @task
-async def statistical_baseline(data, seed, strategy):
+async def statistical_baseline(data, l2, seed, strategy):
     with open("conf/classification/baselines.json", "rt") as f:
         baselines = json.load(f)
     fraction = baselines[data]['fraction']
@@ -121,7 +121,7 @@ async def statistical_baseline(data, seed, strategy):
         'ucb': TYPE_UCB,
         'thompson': TYPE_THOMPSON
     }[strategy]
-    policy = StatisticalPolicy(train.k, train.d, l2=1.0, draw_type=draw_type)
+    policy = StatisticalPolicy(train.k, train.d, l2=l2, draw_type=draw_type)
     baseline_size = int(fraction * train.n)
     prng = rng_seed(seed)
     indices = prng.permutation(train.n)[0:baseline_size]

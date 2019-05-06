@@ -177,7 +177,7 @@ async def classification_run(config, data, points, seed):
 async def build_policy(config, data, seed):
     train = load_train(data, seed)
     if config.strategy in ['ucb', 'thompson']:
-        baseline = statistical_baseline(data, seed, config.strategy)
+        baseline = statistical_baseline(data, config.l2, seed, config.strategy)
     else:
         baseline = best_baseline(data, seed)
     train, baseline = await train, await baseline
@@ -198,7 +198,7 @@ def log_progress(index, points, data, out, policy, config, seed):
     bounds = ""
     if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
         bounds = f" :: {policy.lcb_w:.6f} ?> {policy.ucb_baseline:.6f}"
-    tune = config.alpha if config.strategy in ["ucb", "thompson"] else config.lr
+    tune = f"a={config.alpha}, l2={config.l2}" if config.strategy in ["ucb", "thompson"] else config.lr
     logging.info(f"[{seed}, {points[index]:7d}] {data} {config.strategy} ({tune}): {out['deploy'][index]:.4f} (deploy) {out['learned'][index]:.4f} (learned) {bounds}")
 
 

@@ -12,9 +12,10 @@ def argmax(scores):
         if s > best_score:
             best_action = a
             best_score = s
-        elif s == best_score and np.random.random() < 1 / c:
-            best_action = a
-            best_score = s
+        elif s == best_score:
+            if np.random.random() < 1 / c:
+                best_action = a
+                best_score = s
             c += 1.0
     return best_action
 

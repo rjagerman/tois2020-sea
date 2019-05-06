@@ -24,6 +24,7 @@ def _SEAPolicy(bl_type):
         ('d', numba.int32),
         ('n', numba.int32),
         ('lr', numba.float64),
+        ('l2', numba.float64),
         ('cap', numba.float64),
         ('baseline', bl_type),
         ('w', numba.float64[:,:]),
@@ -42,11 +43,12 @@ def _SEAPolicy(bl_type):
         ('recompute_bounds', numba.int32)
     ])
     class SEAPolicy:
-        def __init__(self, k, d, n, lr, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds):
+        def __init__(self, k, d, n, lr, l2, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds):
             self.k = k
             self.d = d
             self.n = n
             self.lr = lr
+            self.l2 = l2
             self.cap = cap
             self.baseline = baseline
             self.w = w
@@ -72,7 +74,7 @@ def _SEAPolicy(bl_type):
                 val = x.data[i]
                 for aprime in range(self.k):
                     kronecker = 1.0 if aprime == a else 0.0
-                    self.w[col, aprime] -= self.lr * (val / self.baseline.tau) * loss * sm[aprime] * (kronecker - sm[a])
+                    self.w[col, aprime] -= self.lr * ((val / self.baseline.tau) * loss * sm[aprime] * (kronecker - sm[a]) + self.l2 * self.w[col, aprime])
             self._record_history(index, a, r, p)
             self.recompute_bounds += 1
             if self.recompute_bounds >= 1000:
@@ -174,6 +176,7 @@ def __getstate(self):
         'd': self.d,
         'n': self.n,
         'lr': self.lr,
+        'l2': self.l2,
         'cap': self.cap,
         'baseline': self.baseline,
         'w': self.w,
@@ -198,6 +201,7 @@ def __setstate(self, state):
     self.d = state['d']
     self.n = state['n']
     self.lr = state['lr']
+    self.l2 = state['l2']
     self.cap = state['cap']
     self.baseline = state['baseline']
     self.w = state['w']
@@ -217,7 +221,7 @@ def __reduce(self):
 
 def __deepcopy(self):
     return SEAPolicy(self.k, self.d, self.n, self.baseline.__deepcopy__(), self.lr,
-                     self.cap, np.copy(self.w), self.confidence, #(
+                     self.l2, self.cap, np.copy(self.w), self.confidence, #(
                     #      self.history[0].__deepcopy__(),
                     #      self.history[1].__deepcopy__(),
                     #      self.history[2].__deepcopy__(),
@@ -226,7 +230,7 @@ def __deepcopy(self):
                     np.copy(self.ips_w), np.copy(self.ips_w2), self.ips_n, self.ucb_baseline, self.lcb_w, self.recompute_bounds)
 
 
-def SEAPolicy(k, d, n, baseline, lr=0.01, cap=0.05, w=None, confidence=0.95, ips_w=None, ips_w2=None, ips_n=0, ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=0, **kw_args):
+def SEAPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None, confidence=0.95, ips_w=None, ips_w2=None, ips_n=0, ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=0, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
     if bl_type not in _SEA_POLICY_TYPE_CACHE:
@@ -239,7 +243,7 @@ def SEAPolicy(k, d, n, baseline, lr=0.01, cap=0.05, w=None, confidence=0.95, ips
     # ) if history is None else history
     ips_w = np.zeros((n, k)) if ips_w is None else ips_w
     ips_w2 = np.zeros((n, k)) if ips_w2 is None else ips_w2
-    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, n, lr, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds)
+    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, n, lr, l2, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds)
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)

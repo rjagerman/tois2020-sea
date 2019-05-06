@@ -8,14 +8,14 @@ from experiments.classification.policies.statistical import StatisticalPolicy, T
 
 
 _STRATEGY_MAP = {
-    'boltzmann': lambda k, d, args: BoltzmannPolicy(k, d, args['lr'], args['tau'], args['w']),
-    'epsgreedy': lambda k, d, args: EpsgreedyPolicy(k, d, args['lr'], args['eps'], args['w']),
-    'greedy': lambda k, d, args: GreedyPolicy(k, d, args['lr'], args['w']),
-    'uniform': lambda k, d, args: UniformPolicy(k, d, args['lr'], args['w']),
-    'ips': lambda k, d, args: IPSPolicy(k, d, args['baseline'], args['lr'], args['cap'], args['w']),
+    'boltzmann': lambda k, d, args: BoltzmannPolicy(k, d, args['lr'], args['l2'], args['tau'], args['w']),
+    'epsgreedy': lambda k, d, args: EpsgreedyPolicy(k, d, args['lr'], args['l2'], args['eps'], args['w']),
+    'greedy': lambda k, d, args: GreedyPolicy(k, d, args['lr'], args['l2'], args['w']),
+    'uniform': lambda k, d, args: UniformPolicy(k, d, args['lr'], args['l2'], args['w']),
+    'ips': lambda k, d, args: IPSPolicy(k, d, args['baseline'], args['lr'], args['l2'], args['cap'], args['w']),
     'ucb': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], args['w'], draw_type=_TYPE_UCB),
     'thompson': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], args['w'], draw_type=_TYPE_THOMPSON),
-    'sea': lambda k, d, args: SEAPolicy(k, d, args['n'], args['baseline'], args['lr'], args['cap'], args['w'], args['confidence']),
+    'sea': lambda k, d, args: SEAPolicy(k, d, args['n'], args['baseline'], args['lr'], args['l2'], args['cap'], args['w'], args['confidence']),
 }
 
 def create_policy(strategy, k, d, **args):

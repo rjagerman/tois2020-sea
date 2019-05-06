@@ -7,13 +7,15 @@ from experiments.classification.policies.util import argmax, init_weights
     ('k', numba.int32),
     ('d', numba.int32),
     ('lr', numba.float64),
+    ('l2', numba.float64),
     ('w', numba.float64[:,:])
 ])
 class _GreedyPolicy:
-    def __init__(self, k, d, lr, w):
+    def __init__(self, k, d, lr, l2, w):
         self.k = k
         self.d = d
         self.lr = lr
+        self.l2 = l2
         self.w = w
     
     def update(self, dataset, index, a, r):
@@ -23,7 +25,7 @@ class _GreedyPolicy:
         for i in range(x.nnz):
             col = x.indices[i]
             val = x.data[i]
-            self.w[col, a] -= self.lr * val * loss
+            self.w[col, a] -= self.lr * (val * loss + self.l2 * self.w[col, a])
     
     def draw(self, x):
         return self.max(x)
