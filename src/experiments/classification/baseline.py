@@ -92,10 +92,10 @@ async def evaluate_baseline(data, lr, fraction, epochs, eps, tau, seed):
 
 
 @task(use_cache=True)
-async def train_baseline(data, lr, fraction, epochs, eps, tau, seed):
+async def train_baseline(data, lr, l2, fraction, epochs, eps, tau, seed):
     train = await load_train(data)
     #policy = EpsgreedyPolicy(train.k, train.d, lr=lr, eps=eps)
-    policy = BoltzmannPolicy(train.k, train.d, lr=lr, tau=tau)
+    policy = BoltzmannPolicy(train.k, train.d, lr=lr, tau=tau, l2=l2)
     baseline_size = int(fraction * train.n)
     prng = rng_seed(seed)
     indices = prng.permutation(train.n)[0:baseline_size]

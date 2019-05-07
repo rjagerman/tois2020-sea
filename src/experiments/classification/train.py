@@ -66,7 +66,7 @@ def main():
             tune_p = config.lr
             if config.strategy in ["ucb", "thompson"]:
                 tune_p = config.alpha
-            logging.info(f"{args.dataset} {config.strategy} ({tune_p}) = {metric}: {result[metric]['mean'][-1]:.4f} +/- {result[metric]['std'][-1]:.4f} => {result[metric]['conf'][bound][-1]:.4f}")
+            logging.info(f"{args.dataset} {config.strategy} ({tune_p}, {config.l2}) = {metric}: {result[metric]['mean'][-1]:.4f} +/- {result[metric]['std'][-1]:.4f} => {result[metric]['conf'][bound][-1]:.4f}")
 
     # Create plot
     fig, ax = plt.subplots()
