@@ -2,6 +2,10 @@ import numpy as np
 import numba
 import os
 import json
+import dlib
+from rulpy.pipeline.task_executor import task
+from skopt.space import Real, Integer, Categorical, Space
+from threading import Semaphore
 
 
 @numba.njit(nogil=True)
@@ -52,3 +56,69 @@ class NumpyEncoder(json.JSONEncoder):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
+
+
+@task
+async def hypermax(n, target_fn, space):
+    """
+    Hyper parameter optimization function
+    """
+    lowers = [x[0] for x in space.transformed_bounds]
+    uppers = [x[1] for x in space.transformed_bounds]
+    constraints = dlib.function_spec(lowers, uppers)
+    solver = dlib.global_function_search(constraints)
+
+    @task(use_cache=False)
+    async def _next_fn_call(index):
+        solver_call = solver.get_next_x()
+        solver_call.set(await target_fn(*solver_call.x))
+
+    output = [_next_fn_call(index) for index in range(n)]
+    output = [await o for o in output]
+
+    best_params, best_score, _ = solver.get_best_function_eval()
+    best_params = space.inverse_transform(np.array([best_params]))[0]
+
+    return best_params, best_score
+
+
+class HyperOptimizer():
+    def __init__(self, target_fn, space, maximize=True, max_parallel=5, kwargs={}):
+        self.target_fn = target_fn
+        self.space = space
+        lowers = [x[0] for x in space.transformed_bounds]
+        uppers = [x[1] for x in space.transformed_bounds]
+        constraints = dlib.function_spec(lowers, uppers)
+        self.solver = dlib.global_function_search(constraints)
+        self.maximize = maximize
+        self._can_run = Semaphore(max_parallel)
+        self.kwargs = kwargs
+
+    @task(use_cache=False)
+    async def optimize(self, attempts):
+        output = [self._next_run(index) for index in range(attempts)]
+        output = [await o for o in output]
+        best_params, best_score, _ = self.solver.get_best_function_eval()
+        best_params = self.space.inverse_transform(np.array([best_params]))[0]
+        if not self.maximize:
+            best_score = -best_score
+        return best_params, best_score
+    
+    @task(use_cache=False)
+    async def _next_run(self, index):
+        while not self._can_run.acquire(blocking=False):
+            await DoNothing()
+        try:
+            point = self.solver.get_next_x()
+            next_x = self.space.inverse_transform(np.array([point.x]))[0]
+            result = await self.target_fn(*next_x, **(self.kwargs))
+            if not self.maximize:
+                result *= -1
+            point.set(result)
+        finally:
+            self._can_run.release()
+
+class DoNothing():
+    def __await__(self):
+        yield
+        return True
