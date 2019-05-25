@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--x0_max", type=float, default=10.0)
     parser.add_argument("--x0_prior", type=str, default='log-uniform')
     parser.add_argument("--x1_min", type=float, default=1e-10)
-    parser.add_argument("--x1_max", type=float, default=10.0)
+    parser.add_argument("--x1_max", type=float, default=1000.0)
     parser.add_argument("--x1_prior", type=str, default='log-uniform')
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--l2", type=float, default=1.0)
@@ -54,8 +54,8 @@ def main():
         targets = []
         for config in configs:
             space = Space([
-                Real(low=1e-10, high=10.0, prior='log-uniform'),
-                Real(low=1e-10, high=1000.0, prior='log-uniform')
+                Real(low=config.x0_min, high=config.x0_max, prior=config.x0_prior),
+                Real(low=config.x1_min, high=config.x1_max, prior=config.x1_prior)
             ])
             maximize = True if config.strategy == 'ips' else False
             hyperopt = HyperOptimizer(target_fn, space, maximize=maximize, max_parallel=5, kwargs={
