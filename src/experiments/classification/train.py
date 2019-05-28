@@ -12,7 +12,7 @@ from experiments.classification.policies import create_policy
 from experiments.classification.optimization import optimize
 from experiments.classification.evaluation import evaluate
 from experiments.classification.baseline import best_baseline, statistical_baseline
-from experiments.classification.dataset import load_train, load_test
+from experiments.classification.dataset import load_train, load_test, load_vali
 from experiments.util import rng_seed, get_evaluation_points, mkdir_if_not_exists, NumpyEncoder
 
 
@@ -100,7 +100,7 @@ def main():
 
 
 @task(use_cache=True)
-async def run_experiment(config, data, repeats, iterations, evaluations, eval_scale, seed_base=4200):
+async def run_experiment(config, data, repeats, iterations, evaluations, eval_scale, seed_base=4200, on_vali=False):
 
     # points to evaluate at
     points = get_evaluation_points(iterations, evaluations, eval_scale)
@@ -117,7 +117,8 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
     results = {
         "learned": np.vstack([x["learned"] for x in results]),
         "deploy": np.vstack([x["deploy"] for x in results]),
-        "regret": np.vstack([x["regret"] for x in results])
+        "regret": np.vstack([x["regret"] for x in results]),
+        "test_regret": np.vstack([x["test_regret"] for x in results])
     }
 
     # Compute aggregate statistics from results
@@ -137,11 +138,15 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
 
 
 @task(use_cache=True)
-async def classification_run(config, data, points, seed):
+async def classification_run(config, data, points, seed, on_vali=False):
 
     # Load train, test and policy
-    train = load_train(data, seed)
-    test = load_test(data, seed)
+    if on_vali:
+        train = load_train(data, seed)
+        test = load_vali(data, seed)
+    else:
+        train = load_train(data, seed, sample=1.0)
+        test = load_test(data, seed)
     policy = build_policy(config, data, seed)
     train, test, policy = await train, await test, await policy
     policy = policy.__deepcopy__()
@@ -150,23 +155,30 @@ async def classification_run(config, data, points, seed):
     out = {
         'deploy': np.zeros(len(points)),
         'learned': np.zeros(len(points)),
-        'regret': np.zeros(len(points))
+        'regret': np.zeros(len(points)),
+        'test_regret': np.zeros(len(points)),
     }
 
     # Generate training indices and seed randomness
     prng = rng_seed(seed)
     indices = prng.randint(0, train.n, np.max(points))
+    test_indices = prng.randint(0, test.n, np.max(points))
 
     # Evaluate on point 0
     out['deploy'][0], out['learned'][0] = evaluate(test, policy)
     out['regret'][0] = 0.0
+    out['test_regret'][0] = 0.0
     log_progress(0, points, data, out, policy, config, seed)
 
     # Train and evaluate at specified points
     for i in range(1, len(points)):
         start = points[i - 1]
         end = points[i]
-        out['regret'][i] = out['regret'][i - 1] + optimize(train, indices[start:end], policy)
+        train_start_end = np.copy(indices[start:end])
+        test_start_end = np.copy(test_indices[start:end])
+        train_regret, test_regret = optimize(train, train_start_end, test, test_start_end, policy)
+        out['regret'][i] = out['regret'][i - 1] + train_regret
+        out['test_regret'][i] = out['test_regret'][i - 1] + test_regret
         out['deploy'][i], out['learned'][i] = evaluate(test, policy)
         log_progress(i, points, data, out, policy, config, seed)
     
@@ -198,8 +210,11 @@ def log_progress(index, points, data, out, policy, config, seed):
     bounds = ""
     if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):
         bounds = f" :: {policy.lcb_w:.6f} ?> {policy.ucb_baseline:.6f}"
-    tune = f"a={config.alpha}, l2={config.l2}" if config.strategy in ["ucb", "thompson"] else config.lr
-    logging.info(f"[{seed}, {points[index]:7d}] {data} {config.strategy} ({tune}): {out['deploy'][index]:.4f} (deploy) {out['learned'][index]:.4f} (learned) {bounds}")
+    tune = f"a={config.alpha:.4g}, l2={config.l2:.4g}" if config.strategy in ["ucb", "thompson"] else f"lr={config.lr:.4g}, l2={config.l2:.4g}"
+    logging.info(f"[{seed}, {points[index]:7d}] {data} {config.strategy} ({tune}): test deploy:  {out['deploy'][index]:.4f} {bounds}")
+    logging.info(f"[{seed}, {points[index]:7d}] {data} {config.strategy} ({tune}): test learned: {out['learned'][index]:.4f}")
+    logging.info(f"[{seed}, {points[index]:7d}] {data} {config.strategy} ({tune}): regret:       {out['regret'][index]:.4f}")
+    logging.info(f"[{seed}, {points[index]:7d}] {data} {config.strategy} ({tune}): test regret:  {out['test_regret'][index]:.4f}")
 
 
 if __name__ == "__main__":

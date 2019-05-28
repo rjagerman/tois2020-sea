@@ -3,9 +3,10 @@ import numba
 import os
 import json
 import dlib
+import logging
 from rulpy.pipeline.task_executor import task
 from skopt.space import Real, Integer, Categorical, Space
-from threading import Semaphore
+from threading import Semaphore, Lock
 
 
 @numba.njit(nogil=True)
@@ -58,40 +59,14 @@ class NumpyEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-@task
-async def hypermax(n, target_fn, space):
-    """
-    Hyper parameter optimization function
-    """
-    lowers = [x[0] for x in space.transformed_bounds]
-    uppers = [x[1] for x in space.transformed_bounds]
-    constraints = dlib.function_spec(lowers, uppers)
-    solver = dlib.global_function_search(constraints)
-
-    @task(use_cache=False)
-    async def _next_fn_call(index):
-        solver_call = solver.get_next_x()
-        solver_call.set(await target_fn(*solver_call.x))
-
-    output = [_next_fn_call(index) for index in range(n)]
-    output = [await o for o in output]
-
-    best_params, best_score, _ = solver.get_best_function_eval()
-    best_params = space.inverse_transform(np.array([best_params]))[0]
-
-    return best_params, best_score
-
-
 class HyperOptimizer():
     def __init__(self, target_fn, space, maximize=True, max_parallel=5, kwargs={}):
         self.target_fn = target_fn
         self.space = space
-        lowers = [x[0] for x in space.transformed_bounds]
-        uppers = [x[1] for x in space.transformed_bounds]
-        constraints = dlib.function_spec(lowers, uppers)
-        self.solver = dlib.global_function_search(constraints)
+        self.solver = None
         self.maximize = maximize
         self._can_run = Semaphore(max_parallel)
+        self._update_lock = Lock()
         self.kwargs = kwargs
 
     @task(use_cache=False)
@@ -114,11 +89,73 @@ class HyperOptimizer():
             result = await self.target_fn(*next_x, **(self.kwargs))
             if not self.maximize:
                 result *= -1
-            point.set(result)
+            with self._update_lock:
+                point.set(result)
         finally:
             self._can_run.release()
+
+
+class MaxLIPO_TR_Optimizer(HyperOptimizer):
+    def __init__(self, target_fn, space, maximize=True, max_parallel=5, kwargs={}):
+        super().__init__(target_fn, space, maximize, max_parallel, kwargs)
+        lowers = [x[0] for x in space.transformed_bounds]
+        uppers = [x[1] for x in space.transformed_bounds]
+        constraints = dlib.function_spec(lowers, uppers)
+        self.solver = dlib.global_function_search(constraints)
+
+
+class LogGridOptimizer(HyperOptimizer):
+    def __init__(self, target_fn, space, maximize=True, max_parallel=5, kwargs={}, bases=[1]):
+        super().__init__(target_fn, space, maximize, max_parallel, kwargs)
+        lowers = [x[0] for x in space.transformed_bounds]
+        uppers = [x[1] for x in space.transformed_bounds]
+        self.solver = _LogGridSolver(lowers, uppers, bases)
+
+    @property
+    def nr_max_attempts(self):
+        return len(self.solver.grid_options)
+
 
 class DoNothing():
     def __await__(self):
         yield
         return True
+
+
+class _LogGridSolver():
+    def __init__(self, lowers, uppers, bases=[1]):
+        self._t = 0
+        dimensions = [np.arange(lowers[i], uppers[i] + 1) for i in range(len(uppers))]
+        self.grid_options = np.stack(np.meshgrid(*dimensions), -1).reshape(-1, len(dimensions))
+        self.grid_options = np.vstack([np.log10(base * (10 ** self.grid_options)) for base in bases])
+        #np.random.shuffle(self.grid_options)
+        self.grid_options = [
+            GridPoint(self.grid_options[i, :], self)
+            for i in range(self.grid_options.shape[0])
+        ]
+        self.best = self.grid_options[0]
+        self._update_lock = Lock()
+    
+    def get_next_x(self):
+        x = self.grid_options[self._t]
+        self._t = (self._t + 1) % len(self.grid_options)
+        return x
+
+    def _update_point(self, point):
+        with self._update_lock:
+            if self.best._v is None or point._v > self.best._v:
+                self.best = point
+
+    def get_best_function_eval(self):
+        return self.best.x, self.best._v, self.best
+
+        
+class GridPoint():
+    def __init__(self, x, solver):
+        self.x = x
+        self._v = None
+        self._solver = solver
+
+    def set(self, result):
+        self._v = result
+        self._solver._update_point(self)

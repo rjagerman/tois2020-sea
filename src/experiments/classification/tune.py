@@ -11,7 +11,7 @@ from joblib.memory import Memory
 from argparse import ArgumentParser
 from rulpy.pipeline import task, TaskExecutor
 from experiments.classification.train import run_experiment
-from experiments.util import HyperOptimizer
+from experiments.util import LogGridOptimizer, NumpyEncoder
 
 
 def main():
@@ -58,15 +58,15 @@ def main():
                 Real(low=config.x1_min, high=config.x1_max, prior=config.x1_prior)
             ])
             maximize = True if config.strategy == 'ips' else False
-            hyperopt = HyperOptimizer(target_fn, space, maximize=maximize, max_parallel=5, kwargs={
+            hyperopt = LogGridOptimizer(target_fn, space, maximize=maximize, max_parallel=5, kwargs={
                 "config": config,
                 "data": args.dataset,
                 "repeats": args.repeats,
                 "iterations": args.iterations,
                 "seed_base": 4200
-            })
+            }, bases=[1, 3])
             targets.append(hyperopt)
-        results = [target.optimize(args.attempts) for target in targets]
+        results = [target.optimize(args.attempts if args.attempts != -1 else hyperopt.nr_max_attempts) for target in targets]
     results = [r.result for r in results]
 
     for target, result in zip(targets, results):
@@ -81,10 +81,10 @@ async def target_fn(x0, x1, config, data, repeats, iterations, seed_base):
     else:
         new_config.lr = x0
     new_config.l2 = x1
-    output = await run_experiment(new_config, data, repeats, iterations, 2, 'lin', seed_base)
+    output = await run_experiment(new_config, data, repeats, iterations, 2, 'lin', seed_base, on_vali=True)
     if new_config.strategy in ['ips']:
         return output['learned']['conf'][0][-1]
-    return output['regret']['conf'][1][-1]
+    return output['test_regret']['conf'][1][-1]
 
 
 if __name__ == "__main__":

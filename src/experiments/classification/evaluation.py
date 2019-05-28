@@ -17,3 +17,4 @@ def evaluate(test_data, policy):
         cum_r_policy += r_policy
         cum_r_best += r_best
     return cum_r_policy / test_data.n, cum_r_best / test_data.n
+

@@ -105,13 +105,17 @@ async def load_svm_dataset(file_path):
 
 
 @task(use_cache=True)
-async def load_from_path(file_path, min_d=0, sample=1.0, seed=0):
+async def load_from_path(file_path, min_d=0, sample=1.0, seed=0,  sample_inverse=False):
     xs, ys = await load_svm_dataset(file_path)
     ys = ys.astype(np.int32)
     ys -= np.min(ys)
     if sample < 1.0:
         prng = rng_seed(seed)
-        indices = prng.permutation(xs.shape[0])[0:int(sample*xs.shape[0])]
+        indices = prng.permutation(xs.shape[0])
+        if not sample_inverse:
+            indices = indices[0:int(sample*xs.shape[0])]
+        else:
+            indices = indices[int(sample*xs.shape[0]):]
         xs = xs[indices, :]
         ys = ys[indices]
     k = np.unique(ys).shape[0]
@@ -123,12 +127,21 @@ async def load_from_path(file_path, min_d=0, sample=1.0, seed=0):
 
 
 @task
-async def load_train(dataset, seed=0):
+async def load_train(dataset, seed=0, sample=None):
     train_path = datasets[dataset]['train']['path']
-    sample = datasets[dataset]['train']['sample']
+    sample = datasets[dataset]['train']['sample'] if sample is None else sample
     if sample == 1.0:
         seed = 0
     return await load_from_path(train_path, sample=sample, seed=seed)
+
+
+@task
+async def load_vali(dataset, seed=0):
+    train_path = datasets[dataset]['vali']['path']
+    sample = 1.0 - datasets[dataset]['vali']['sample']
+    if sample == 1.0:
+        seed = 0
+    return await load_from_path(train_path, sample=sample, seed=seed, sample_inverse=True)
 
 
 @task

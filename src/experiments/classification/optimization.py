@@ -36,12 +36,18 @@ def optimize_supervised_ridge(train, indices, policy, epochs=1):
 
 
 @numba.njit(nogil=True)
-def optimize(train, indices, policy):
-    regret = 0.0
-    for index in indices:
-        x, y = train.get(index)
+def optimize(train, train_indices, test, test_indices, policy):
+    train_regret = 0.0
+    test_regret = 0.0
+    for i in range(len(train_indices)):
+        x_test, y_test = test.get(test_indices[i])
+        a_test = policy.draw(x_test)
+        r_test = reward(x_test, y_test, a_test)
+        test_regret += (1.0 - r_test)
+        x, y = train.get(train_indices[i])
         a = policy.draw(x)
         r = reward(x, y, a)
-        regret += (1.0 - r)
-        policy.update(train, index, a, r)
-    return regret
+        train_regret += (1.0 - r)
+        policy.update(train, train_indices[i], a, r)
+
+    return train_regret, test_regret
