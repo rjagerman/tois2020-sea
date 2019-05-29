@@ -157,13 +157,19 @@ async def classification_run(config, data, points, seed, vali=0.0):
 
     # Generate training indices and seed randomness
     prng = rng_seed(seed)
-    indices = prng.randint(0, train.n, np.max(points))
+    indices_shuffle = prng.permutation(train.n)
+
+    train_indices = prng.randint(0, int(vali*train.n), np.max(points))
+    train_indices = indices_shuffle[train_indices]
+
+    vali_indices = prng.randint(int(vali*train.n), train.n, np.max(points))
+    vali_indices = indices_shuffle[vali_indices]
 
     # Evaluate on point 0
     if vali == 0.0:
-        out['deploy'][0], out['learned'][0] = evaluate(test, policy)
+        out['deploy'][0], out['learned'][0] = evaluate(test, policy, np.arange(0, test.n))
     else:
-        out['deploy'][0], out['learned'][0] = evaluate(test, policy, vali)
+        out['deploy'][0], out['learned'][0] = evaluate(train, policy, indices_shuffle[np.arange(int(vali * train.n), train.n)])
     out['regret'][0] = 0.0
     out['test_regret'][0] = 0.0
     log_progress(0, points, data, out, policy, config, seed)
@@ -172,13 +178,13 @@ async def classification_run(config, data, points, seed, vali=0.0):
     for i in range(1, len(points)):
         start = points[i - 1]
         end = points[i]
-        train_regret, test_regret = optimize(train, np.copy(indices[start:end]), vali, policy)
+        train_regret, test_regret = optimize(train, np.copy(train_indices[start:end]), np.copy(vali_indices[start:end]), policy)
         out['regret'][i] = out['regret'][i - 1] + train_regret
         out['test_regret'][i] = out['test_regret'][i - 1] + test_regret
         if vali == 0.0:
-            out['deploy'][i], out['learned'][i] = evaluate(test, policy)
+            out['deploy'][i], out['learned'][i] = evaluate(test, policy, np.arange(0, test.n))
         else:
-            out['deploy'][i], out['learned'][i] = evaluate(train, policy, vali)
+            out['deploy'][i], out['learned'][i] = evaluate(train, policy, indices_shuffle[np.arange(int(vali * train.n), train.n)])
         log_progress(i, points, data, out, policy, config, seed)
     
     return out
