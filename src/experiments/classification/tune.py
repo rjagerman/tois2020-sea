@@ -81,7 +81,7 @@ async def target_fn(x0, x1, config, data, repeats, iterations, seed_base):
     else:
         new_config.lr = x0
     new_config.l2 = x1
-    output = await run_experiment(new_config, data, repeats, iterations, 2, 'lin', seed_base, on_vali=True)
+    output = await run_experiment(new_config, data, repeats, iterations, 2, 'lin', seed_base, vali=0.1)
     if new_config.strategy in ['ips']:
         return output['learned']['conf'][0][-1]
     return output['test_regret']['conf'][1][-1]

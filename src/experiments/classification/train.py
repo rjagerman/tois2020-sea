@@ -49,7 +49,7 @@ def main():
 
     # Run experiments in task executor
     with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
-        results = [run_experiment(config, args.dataset, args.repeats, args.iterations, args.evaluations, args.eval_scale) for config in configs]
+        results = [run_experiment(config, args.dataset, args.repeats, args.iterations, args.evaluations, args.eval_scale, vali=0.1) for config in configs]
     results = [r.result for r in results]
     
     # Write json results
@@ -100,7 +100,7 @@ def main():
 
 
 @task(use_cache=True)
-async def run_experiment(config, data, repeats, iterations, evaluations, eval_scale, seed_base=4200, on_vali=False):
+async def run_experiment(config, data, repeats, iterations, evaluations, eval_scale, seed_base=4200, vali=0.0):
 
     # points to evaluate at
     points = get_evaluation_points(iterations, evaluations, eval_scale)
@@ -108,7 +108,7 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
     # Evaluate at all points and all seeds
     results = []
     for seed in range(seed_base, seed_base + repeats):
-        results.append(classification_run(config, data, points, seed))
+        results.append(classification_run(config, data, points, seed, vali))
 
     # Await results to finish computing
     results = [await r for r in results]
@@ -138,15 +138,11 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
 
 
 @task(use_cache=True)
-async def classification_run(config, data, points, seed, on_vali=False):
+async def classification_run(config, data, points, seed, vali=0.0):
 
     # Load train, test and policy
-    if on_vali:
-        train = load_train(data, seed)
-        test = load_vali(data, seed)
-    else:
-        train = load_train(data, seed, sample=1.0)
-        test = load_test(data, seed)
+    train = load_train(data, seed)
+    test = load_test(data, seed)
     policy = build_policy(config, data, seed)
     train, test, policy = await train, await test, await policy
     policy = policy.__deepcopy__()
@@ -162,7 +158,6 @@ async def classification_run(config, data, points, seed, on_vali=False):
     # Generate training indices and seed randomness
     prng = rng_seed(seed)
     indices = prng.randint(0, train.n, np.max(points))
-    test_indices = prng.randint(0, test.n, np.max(points))
 
     # Evaluate on point 0
     out['deploy'][0], out['learned'][0] = evaluate(test, policy)
@@ -174,9 +169,7 @@ async def classification_run(config, data, points, seed, on_vali=False):
     for i in range(1, len(points)):
         start = points[i - 1]
         end = points[i]
-        train_start_end = np.copy(indices[start:end])
-        test_start_end = np.copy(test_indices[start:end])
-        train_regret, test_regret = optimize(train, train_start_end, test, test_start_end, policy)
+        train_regret, test_regret = optimize(train, np.copy(indices[start:end]), vali, policy)
         out['regret'][i] = out['regret'][i - 1] + train_regret
         out['test_regret'][i] = out['test_regret'][i - 1] + test_regret
         out['deploy'][i], out['learned'][i] = evaluate(test, policy)
