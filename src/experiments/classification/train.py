@@ -160,7 +160,10 @@ async def classification_run(config, data, points, seed, vali=0.0):
     indices = prng.randint(0, train.n, np.max(points))
 
     # Evaluate on point 0
-    out['deploy'][0], out['learned'][0] = evaluate(test, policy)
+    if vali == 0.0:
+        out['deploy'][0], out['learned'][0] = evaluate(test, policy)
+    else:
+        out['deploy'][0], out['learned'][0] = evaluate(test, policy, vali)
     out['regret'][0] = 0.0
     out['test_regret'][0] = 0.0
     log_progress(0, points, data, out, policy, config, seed)
