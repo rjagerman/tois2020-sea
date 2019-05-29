@@ -172,7 +172,10 @@ async def classification_run(config, data, points, seed, vali=0.0):
         train_regret, test_regret = optimize(train, np.copy(indices[start:end]), vali, policy)
         out['regret'][i] = out['regret'][i - 1] + train_regret
         out['test_regret'][i] = out['test_regret'][i - 1] + test_regret
-        out['deploy'][i], out['learned'][i] = evaluate(test, policy)
+        if vali == 0.0:
+            out['deploy'][i], out['learned'][i] = evaluate(test, policy)
+        else:
+            out['deploy'][i], out['learned'][i] = evaluate(train, policy, vali)
         log_progress(i, points, data, out, policy, config, seed)
     
     return out

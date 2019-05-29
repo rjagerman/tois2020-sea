@@ -5,10 +5,11 @@ from experiments.classification.util import reward
 
 
 @numba.njit(nogil=True)
-def evaluate(test_data, policy):
+def evaluate(test_data, policy, vali=1.0):
     cum_r_policy = 0.0
     cum_r_best = 0.0
-    for i in range(test_data.n):
+    nr_points = int(test_data.n * vali)
+    for i in range(nr_points):
         x, y = test_data.get(i)
         a_policy = policy.draw(x)
         a_best = policy.max(x)
@@ -16,5 +17,5 @@ def evaluate(test_data, policy):
         r_best = reward(x, y, a_best)
         cum_r_policy += r_policy
         cum_r_best += r_best
-    return cum_r_policy / test_data.n, cum_r_best / test_data.n
+    return cum_r_policy / nr_points, cum_r_best / nr_points
 
