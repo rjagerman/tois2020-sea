@@ -162,8 +162,11 @@ async def classification_run(config, data, points, seed, vali=0.0):
     train_indices = prng.randint(0, int(vali*train.n), np.max(points))
     train_indices = indices_shuffle[train_indices]
 
-    vali_indices = prng.randint(int(vali*train.n), train.n, np.max(points))
-    vali_indices = indices_shuffle[vali_indices]
+    if vali != 0.0:
+        vali_indices = prng.randint(int(vali*train.n), train.n, np.max(points))
+        vali_indices = indices_shuffle[vali_indices]
+    else:
+        vali_indices = train_indices
 
     # Evaluate on point 0
     if vali == 0.0:
