@@ -1,31 +1,31 @@
 {
     "news20": {
         "train": {
-            "path": "/Users/rolfjagerman/Datasets/LibSVM/news20.scale.bz2",
+            "path": "/path/to/news20.scale.bz2",
             "sample": 1.0
         },
         "test": {
-            "path": "/Users/rolfjagerman/Datasets/LibSVM/news20.t.scale.bz2",
+            "path": "/path/to/news20.t.scale.bz2",
             "sample": 1.0
         }
     },
     "usps": {
         "train": {
-            "path": "/Users/rolfjagerman/Datasets/LibSVM/usps.bz2",
+            "path": "/path/to/usps.bz2",
             "sample": 1.0
         },
         "test": {
-            "path": "/Users/rolfjagerman/Datasets/LibSVM/usps.t.bz2",
+            "path": "/path/to/usps.t.bz2",
             "sample": 1.0
         }
     },
     "rcv1": {
         "train": {
-            "path": "/Users/rolfjagerman/Datasets/LibSVM/rcv1_train.multiclass.bz2",
+            "path": "/path/to/rcv1_train.multiclass.bz2",
             "sample": 1.0
         },
         "test": {
-            "path": "/Users/rolfjagerman/Datasets/LibSVM/rcv1_test.multiclass.bz2",
+            "path": "/path/to/rcv1_test.multiclass.bz2",
             "sample": 0.05
         }
     }
