@@ -49,7 +49,7 @@ def main():
 
     # Run experiments in task executor
     with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
-        results = [run_experiment(config, args.dataset, args.repeats, args.iterations, args.evaluations, args.eval_scale, vali=0.1) for config in configs]
+        results = [run_experiment(config, args.dataset, args.repeats, args.iterations, args.evaluations, args.eval_scale) for config in configs]
     results = [r.result for r in results]
     
     # Write json results
