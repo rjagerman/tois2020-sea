@@ -73,8 +73,8 @@ def main():
         logging.info(f"{target.kwargs['config'].strategy} == LR:{result[0][0]}, L2:{result[0][1]} -> performance (95% CI) = {result[1]}")
 
 
-@task
-async def target_fn(x0, x1, config, data, repeats, iterations, seed_base):
+@task(use_cache=False)
+async def target_fn(x0, x1, config, data, repeats, iterations, seed_base, call_uid=None):
     new_config = deepcopy(config)
     if new_config.strategy in ['ucb', 'thompson']:
         new_config.alpha = x0

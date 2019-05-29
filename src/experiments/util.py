@@ -68,9 +68,11 @@ class HyperOptimizer():
         self._can_run = Semaphore(max_parallel)
         self._update_lock = Lock()
         self.kwargs = kwargs
+        self._call_uid = id(self)
 
     @task(use_cache=False)
     async def optimize(self, attempts):
+        logging.info(f"Starting hyper parameter search with {attempts} attempts")
         output = [self._next_run(index) for index in range(attempts)]
         output = [await o for o in output]
         best_params, best_score, _ = self.solver.get_best_function_eval()
@@ -86,7 +88,7 @@ class HyperOptimizer():
         try:
             point = self.solver.get_next_x()
             next_x = self.space.inverse_transform(np.array([point.x]))[0]
-            result = await self.target_fn(*next_x, **(self.kwargs))
+            result = await self.target_fn(*next_x, **(self.kwargs), call_uid=self._call_uid)
             if not self.maximize:
                 result *= -1
             with self._update_lock:
@@ -105,11 +107,11 @@ class MaxLIPO_TR_Optimizer(HyperOptimizer):
 
 
 class LogGridOptimizer(HyperOptimizer):
-    def __init__(self, target_fn, space, maximize=True, max_parallel=5, kwargs={}, bases=[1]):
+    def __init__(self, target_fn, space, maximize=True, max_parallel=5, kwargs={}, bases=[1], seed=4200):
         super().__init__(target_fn, space, maximize, max_parallel, kwargs)
         lowers = [x[0] for x in space.transformed_bounds]
         uppers = [x[1] for x in space.transformed_bounds]
-        self.solver = _LogGridSolver(lowers, uppers, bases)
+        self.solver = _LogGridSolver(lowers, uppers, bases, seed)
 
     @property
     def nr_max_attempts(self):
@@ -123,12 +125,13 @@ class DoNothing():
 
 
 class _LogGridSolver():
-    def __init__(self, lowers, uppers, bases=[1]):
+    def __init__(self, lowers, uppers, bases=[1], seed=4200):
         self._t = 0
         dimensions = [np.arange(lowers[i], uppers[i] + 1) for i in range(len(uppers))]
         self.grid_options = np.stack(np.meshgrid(*dimensions), -1).reshape(-1, len(dimensions))
         self.grid_options = np.vstack([np.log10(base * (10 ** self.grid_options)) for base in bases])
-        #np.random.shuffle(self.grid_options)
+        prng = np.random.RandomState(seed=seed)
+        prng.shuffle(self.grid_options)
         self.grid_options = [
             GridPoint(self.grid_options[i, :], self)
             for i in range(self.grid_options.shape[0])
