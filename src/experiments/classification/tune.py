@@ -9,7 +9,8 @@ from scipy import stats as st
 from skopt.space import Real, Space
 from joblib.memory import Memory
 from argparse import ArgumentParser
-from rulpy.pipeline import task, TaskExecutor
+from backflow import task
+from backflow.schedulers import MultiThreadScheduler
 from experiments.classification.train import run_experiment
 from experiments.util import LogGridOptimizer, NumpyEncoder
 
@@ -43,14 +44,14 @@ def main():
     parser.add_argument("--tau", type=float, default=1.0)
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--cap", type=float, default=0.1)
-    
+
     # Read experiment configuration
     with open(args.config, 'rt') as f:
         lines = f.readlines()
         configs = [parser.parse_args(line.strip().split(" ")) for line in lines]
 
     # Run experiments in task executor
-    with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
+    with MultiThreadScheduler(args.parallel) as scheduler:
         targets = []
         for config in configs:
             space = Space([
@@ -67,13 +68,14 @@ def main():
             }, bases=[1, 3])
             targets.append(hyperopt)
         results = [target.optimize(args.attempts if args.attempts != -1 else hyperopt.nr_max_attempts) for target in targets]
-    results = [r.result for r in results]
+        scheduler.block_until_tasks_finish()
+    results = [r.result.value for r in results]
 
     for target, result in zip(targets, results):
         logging.info(f"{target.kwargs['config'].strategy} == LR:{result[0][0]}, L2:{result[0][1]} -> performance (95% CI) = {result[1]}")
 
 
-@task(use_cache=False)
+@task
 async def target_fn(x0, x1, config, data, repeats, iterations, seed_base, call_uid=None):
     new_config = deepcopy(config)
     if new_config.strategy in ['ucb', 'thompson']:

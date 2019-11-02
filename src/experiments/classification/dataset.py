@@ -2,7 +2,8 @@ import logging
 import numpy as np
 import numba
 import json
-from rulpy.pipeline.task_executor import task
+from backflow import task
+from backflow.results import on_disk_result
 from sklearn.datasets import load_svmlight_file
 from scipy.sparse import csr_matrix
 from collections import namedtuple
@@ -30,7 +31,7 @@ class _ClassificationDataset:
         self.n = n
         self.d = d
         self.k = k
-    
+
     def get(self, index):
         return _specialized_get(index, self.xs, self.ys)
 
@@ -62,7 +63,7 @@ def __setstate(self, state):
 
 
 def __reduce(self):
-    return (_ClassificationDataset, (from_scipy(csr_matrix((0,0))), np.empty(0), 0, 0, 0), self.__getstate__())
+    return (ClassificationDataset, (from_scipy(csr_matrix((0,0))), _readonly_i32_1d, 0, 0, 0), self.__getstate__())
 
 
 @numba.generated_jit(nopython=True, nogil=True)
@@ -98,15 +99,9 @@ def _get_many(index, xs, ys):
     return out
 
 
-@task
-async def load_svm_dataset(file_path):
-    logging.info(f"Loading data set from {file_path}")
-    return load_svmlight_file(file_path)
-
-
-@task(use_cache=True)
+@task(result_fn=on_disk_result(".cache/datasets", as_cache=True))
 async def load_from_path(file_path, min_d=0, sample=1.0, seed=0,  sample_inverse=False):
-    xs, ys = await load_svm_dataset(file_path)
+    xs, ys = load_svmlight_file(file_path)
     ys = ys.astype(np.int32)
     ys -= np.min(ys)
     if sample < 1.0:

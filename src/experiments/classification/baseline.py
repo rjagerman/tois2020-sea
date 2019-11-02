@@ -4,7 +4,9 @@ import json
 from joblib.memory import Memory
 from scipy import stats as st
 from argparse import ArgumentParser
-from rulpy.pipeline.task_executor import task, TaskExecutor
+from backflow import task
+from backflow.schedulers import MultiThreadScheduler
+from backflow.results import sqlite_result
 from experiments.classification.policies import EpsgreedyPolicy, StatisticalPolicy, BoltzmannPolicy
 from experiments.classification.policies.statistical import TYPE_THOMPSON, TYPE_UCB
 from experiments.classification.optimization import optimize_supervised_hinge, optimize_supervised_ridge
@@ -34,13 +36,14 @@ def main():
     with open(args.conf, "rt") as f:
         configs = [parser.parse_args(line.strip().split(" ")) for line in f.readlines()]
 
-    with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
+    with MultiThreadScheduler(args.parallel) as scheduler:
         results = [
             evaluate_config(args.dataset, conf.lr, conf.fraction, conf.epochs, conf.eps, args.repeats)
             for conf in configs
         ]
-    results = [r.result for r in results]
-    
+        scheduler.block_until_tasks_finish()
+    results = [r.result.value for r in results]
+
     for result in results:
         best = np.array([run['best'] for run in result['performance']])
         policy = np.array([run['policy'] for run in result['performance']])
@@ -64,7 +67,8 @@ def main():
         logging.info(f"eps={r['eps']} tau={r['tau']} lr={r['lr']} :: {policy['mean']:.5f} +/- {policy['std']:.5f} -> {policy['conf'][0]:.5f} (95% LCB)")
 
 
-@task(use_cache=True)
+@task(result_fn=sqlite_result(
+    "resultdb.sqlite", as_cache=True, keep_in_memory=True))
 async def evaluate_config(data, lr, fraction, epochs, eps, tau, repeats):
     results = {
         'eps': eps,
@@ -79,7 +83,8 @@ async def evaluate_config(data, lr, fraction, epochs, eps, tau, repeats):
     return results
 
 
-@task(use_cache=True)
+@task(result_fn=sqlite_result(
+    "resultdb.sqlite", as_cache=True, keep_in_memory=True))
 async def evaluate_baseline(data, lr, fraction, epochs, eps, tau, seed):
     test = load_test(data, seed)
     baseline = train_baseline(data, lr, fraction, epochs, eps, tau, seed)
@@ -91,7 +96,8 @@ async def evaluate_baseline(data, lr, fraction, epochs, eps, tau, seed):
     return {'policy': acc_policy, 'best': acc_best}
 
 
-@task(use_cache=True)
+@task(result_fn=sqlite_result(
+    "resultdb.sqlite", as_cache=True, keep_in_memory=True))
 async def train_baseline(data, lr, l2, fraction, epochs, eps, tau, seed):
     train = await load_train(data)
     #policy = EpsgreedyPolicy(train.k, train.d, lr=lr, eps=eps)
@@ -111,7 +117,8 @@ async def best_baseline(data, seed):
     return await train_baseline(data, seed=seed, **baselines[data])
 
 
-@task
+@task(result_fn=sqlite_result(
+    "resultdb.sqlite", as_cache=True, keep_in_memory=True))
 async def statistical_baseline(data, l2, seed, strategy):
     with open("conf/classification/baselines.json", "rt") as f:
         baselines = json.load(f)

@@ -17,4 +17,3 @@ def evaluate(test_data, policy, vali_indices):
         cum_r_policy += r_policy
         cum_r_best += r_best
     return cum_r_policy / len(vali_indices), cum_r_best / len(vali_indices)
-

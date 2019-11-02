@@ -7,7 +7,9 @@ from matplotlib import pyplot as plt
 from scipy import stats as st
 from joblib.memory import Memory
 from argparse import ArgumentParser
-from rulpy.pipeline import task, TaskExecutor
+from backflow import task
+from backflow.schedulers import MultiThreadScheduler
+from backflow.results import sqlite_result
 from experiments.classification.policies import create_policy
 from experiments.classification.optimization import optimize
 from experiments.classification.evaluation import evaluate
@@ -17,8 +19,9 @@ from experiments.util import rng_seed, get_evaluation_points, mkdir_if_not_exist
 
 
 def main():
-    logging.basicConfig(format="[%(asctime)s] %(levelname)s %(threadName)-23s: %(message)s",
+    logging.basicConfig(format="[%(asctime)s] %(levelname)-5s %(threadName)35s: %(message)s",
                         level=logging.INFO)
+    logging.getLogger('sqlitedict').setLevel(logging.WARNING)
     cli_parser = ArgumentParser()
     cli_parser.add_argument("-c", "--config", type=str, required=True)
     cli_parser.add_argument("-d", "--dataset", type=str, required=True)
@@ -48,16 +51,17 @@ def main():
         configs = [parser.parse_args(line.strip().split(" ")) for line in lines]
 
     # Run experiments in task executor
-    with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
+    with MultiThreadScheduler(args.parallel) as scheduler:
         results = [run_experiment(config, args.dataset, args.repeats, args.iterations, args.evaluations, args.eval_scale) for config in configs]
-    results = [r.result for r in results]
-    
+        scheduler.block_until_tasks_finish()
+    results = [r.result.value for r in results]
+
     # Write json results
     mkdir_if_not_exists(f"results/{args.output}.json")
     with open(f"results/{args.output}.json", "wt") as f:
         js_results = [{"result": result, "args": vars(config)} for result, config in zip(results, configs)]
         json.dump(js_results, f, cls=NumpyEncoder)
-    
+
     # Print results
     for metric in ['learned', 'deploy', 'regret']:
         bound = 1 if metric == 'regret' else 0
@@ -79,7 +83,7 @@ def main():
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
     if args.eval_scale == 'log':
         ax.set_xscale('symlog')
-        locmin = matplotlib.ticker.SymmetricalLogLocator(base=10.0, subs=np.linspace(1.0, 10.0, 10), linthresh=1.0) 
+        locmin = matplotlib.ticker.SymmetricalLogLocator(base=10.0, subs=np.linspace(1.0, 10.0, 10), linthresh=1.0)
         ax.xaxis.set_minor_locator(locmin)
         ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
         scalar_formatter = matplotlib.ticker.ScalarFormatter()
@@ -99,12 +103,12 @@ def main():
     fig.savefig(f"plots/{args.output}.pdf")
 
 
-@task(use_cache=True)
+@task(result_fn=sqlite_result("resultdb.sqlite", as_cache=True, keep_in_memory=True))
 async def run_experiment(config, data, repeats, iterations, evaluations, eval_scale, seed_base=4200, vali=0.0):
 
     # points to evaluate at
     points = get_evaluation_points(iterations, evaluations, eval_scale)
-    
+
     # Evaluate at all points and all seeds
     results = []
     for seed in range(seed_base, seed_base + repeats):
@@ -132,12 +136,13 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
         for k in results.keys()
     }
     out["x"] = points
-    
+
     # Return results
     return out
 
 
-@task(use_cache=True)
+@task(result_fn=sqlite_result(
+    "resultdb.sqlite", as_cache=True, keep_in_memory=True))
 async def classification_run(config, data, points, seed, vali=0.0):
 
     # Load train, test and policy
@@ -189,7 +194,7 @@ async def classification_run(config, data, points, seed, vali=0.0):
         else:
             out['deploy'][i], out['learned'][i] = evaluate(train, policy, indices_shuffle[np.arange(int(vali * train.n), train.n)])
         log_progress(i, points, data, out, policy, config, seed)
-    
+
     return out
 
 
