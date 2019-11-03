@@ -77,8 +77,8 @@ def main():
     for config, result in zip(configs, results):
         label = f"{config.strategy} ({config.lr})" if config.label is None else config.label
         x = result['x']
-        y = result['learned']['mean']
-        y_std = result['learned']['std']
+        y = result['deploy']['mean']
+        y_std = result['deploy']['std']
         ax.plot(x, y, label=label)
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
     if args.eval_scale == 'log':
@@ -103,7 +103,7 @@ def main():
     fig.savefig(f"plots/{args.output}.pdf")
 
 
-@task(result_fn=sqlite_result("resultdb.sqlite", as_cache=True, keep_in_memory=True))
+@task(result_fn=sqlite_result(".cache/results.sqlite"))
 async def run_experiment(config, data, repeats, iterations, evaluations, eval_scale, seed_base=4200, vali=0.0):
 
     # points to evaluate at
@@ -141,8 +141,7 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
     return out
 
 
-@task(result_fn=sqlite_result(
-    "resultdb.sqlite", as_cache=True, keep_in_memory=True))
+@task(result_fn=sqlite_result(".cache/results.sqlite"))
 async def classification_run(config, data, points, seed, vali=0.0):
 
     # Load train, test and policy

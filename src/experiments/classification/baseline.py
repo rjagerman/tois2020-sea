@@ -67,8 +67,7 @@ def main():
         logging.info(f"eps={r['eps']} tau={r['tau']} lr={r['lr']} :: {policy['mean']:.5f} +/- {policy['std']:.5f} -> {policy['conf'][0]:.5f} (95% LCB)")
 
 
-@task(result_fn=sqlite_result(
-    "resultdb.sqlite", as_cache=True, keep_in_memory=True))
+@task(result_fn=sqlite_result(".cache/results"))
 async def evaluate_config(data, lr, fraction, epochs, eps, tau, repeats):
     results = {
         'eps': eps,
@@ -83,8 +82,7 @@ async def evaluate_config(data, lr, fraction, epochs, eps, tau, repeats):
     return results
 
 
-@task(result_fn=sqlite_result(
-    "resultdb.sqlite", as_cache=True, keep_in_memory=True))
+@task(result_fn=sqlite_result(".cache/results.sqlite"))
 async def evaluate_baseline(data, lr, fraction, epochs, eps, tau, seed):
     test = load_test(data, seed)
     baseline = train_baseline(data, lr, fraction, epochs, eps, tau, seed)
@@ -96,8 +94,7 @@ async def evaluate_baseline(data, lr, fraction, epochs, eps, tau, seed):
     return {'policy': acc_policy, 'best': acc_best}
 
 
-@task(result_fn=sqlite_result(
-    "resultdb.sqlite", as_cache=True, keep_in_memory=True))
+@task(result_fn=sqlite_result(".cache/results.sqlite"))
 async def train_baseline(data, lr, l2, fraction, epochs, eps, tau, seed):
     train = await load_train(data)
     #policy = EpsgreedyPolicy(train.k, train.d, lr=lr, eps=eps)

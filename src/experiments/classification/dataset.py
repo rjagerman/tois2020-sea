@@ -99,7 +99,7 @@ def _get_many(index, xs, ys):
     return out
 
 
-@task(result_fn=on_disk_result(".cache/datasets", as_cache=True))
+@task(result_fn=on_disk_result(".cache/datasets"))
 async def load_from_path(file_path, min_d=0, sample=1.0, seed=0,  sample_inverse=False):
     xs, ys = load_svmlight_file(file_path)
     ys = ys.astype(np.int32)
