@@ -141,13 +141,13 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
     return out
 
 
-@task(result_fn=sqlite_result(".cache/results.sqlite"))
+@task(result_fn=sqlite_result(".cache/results.sqlite", as_cache=False))
 async def classification_run(config, data, points, seed, vali=0.0):
 
     # Load train, test and policy
     train = load_train(data, seed)
     test = load_test(data, seed)
-    policy = build_policy(config, data, seed)
+    policy = build_policy(config, data, points, seed)
     train, test, policy = await train, await test, await policy
     policy = policy.__deepcopy__()
 
@@ -198,7 +198,7 @@ async def classification_run(config, data, points, seed, vali=0.0):
 
 
 @task
-async def build_policy(config, data, seed):
+async def build_policy(config, data, points, seed):
     train = load_train(data, seed)
     if config.strategy in ['ucb', 'thompson']:
         baseline = statistical_baseline(data, config.l2, seed, config.strategy)
@@ -211,6 +211,8 @@ async def build_policy(config, data, seed):
         return out
     args = {'k': train.k, 'd': train.d, 'n': train.n, 'baseline': baseline}
     args.update(vars(config))
+    if config.strategy in ['sea', 'comp']:
+        args['recompute_bounds'] = np.copy(points)
     if not config.cold:
         args['w'] = np.copy(baseline.w)
     if not config.cold and config.strategy == 'boltzmann' and args['tau'] == 1.0:

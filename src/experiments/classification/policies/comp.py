@@ -15,10 +15,10 @@ from llvmlite import binding
 binding.set_option("tmp", "-non-global-value-max-name-size=4096")
 
 
-_SEA_POLICY_TYPE_CACHE = {}
+_COMP_POLICY_TYPE_CACHE = {}
 
 
-def _SEAPolicy(bl_type):
+def _CompPolicy(bl_type):
     @numba.jitclass([
         ('k', numba.int32),
         ('d', numba.int32),
@@ -43,7 +43,7 @@ def _SEAPolicy(bl_type):
         ('recompute_bounds', numba.int32[:]),
         ('t', numba.int32)
     ])
-    class SEAPolicy:
+    class CompPolicy:
         def __init__(self, k, d, n, lr, l2, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds, t):
             self.k = k
             self.d = d
@@ -79,7 +79,7 @@ def _SEAPolicy(bl_type):
                     self.w[col, aprime] -= self.lr * ((val / self.baseline.tau) * loss * sm[aprime] * (kronecker - sm[a]) + self.l2 * self.w[col, aprime])
             self._record_history(index, a, r, p)
             self.t += 1
-            if self.ips_n >= 2 and (len(np.where(self.t == self.recompute_bounds)[0]) == 1 or self.t % 1000 == 0):
+            if self.ips_n >= 1 and (len(np.where(self.t == self.recompute_bounds)[0]) == 1 or self.t % 1000 == 0):
                 self._recompute_bounds(dataset)
                 self._update_baseline()
 
@@ -127,8 +127,8 @@ def _SEAPolicy(bl_type):
             new_var = (new_sum_var / self.ips_n) - (new_mean ** 2)
             baseline_var = (baseline_sum_var / self.ips_n) - (baseline_mean ** 2)
 
-            self.ucb_baseline = baseline_mean + mpeb_bound(self.ips_n, self.confidence, baseline_var, baseline_max)
-            self.lcb_w = new_mean - mpeb_bound(self.ips_n, self.confidence, new_var, new_max)
+            self.ucb_baseline = baseline_mean #+ mpeb_bound(self.ips_n, self.confidence, baseline_var, baseline_max)
+            self.lcb_w = new_mean #- mpeb_bound(self.ips_n, self.confidence, new_var, new_max)
 
             # n = self.history[1].size
 
@@ -168,7 +168,7 @@ def _SEAPolicy(bl_type):
         def probability(self, x, a):
             return self.baseline.probability(x, a)
 
-    return SEAPolicy
+    return CompPolicy
 
 
 def __getstate(self):
@@ -219,11 +219,11 @@ def __setstate(self, state):
 
 
 def __reduce(self):
-    return (SEAPolicy, (self.k, self.d, self.n, self.baseline), self.__getstate__())
+    return (CompPolicy, (self.k, self.d, self.n, self.baseline), self.__getstate__())
 
 
 def __deepcopy(self):
-    return SEAPolicy(self.k, self.d, self.n, self.baseline.__deepcopy__(), self.lr,
+    return CompPolicy(self.k, self.d, self.n, self.baseline.__deepcopy__(), self.lr,
                      self.l2, self.cap, np.copy(self.w), self.confidence, #(
                     #      self.history[0].__deepcopy__(),
                     #      self.history[1].__deepcopy__(),
@@ -233,11 +233,11 @@ def __deepcopy(self):
                     np.copy(self.ips_w), np.copy(self.ips_w2), self.ips_n, self.ucb_baseline, self.lcb_w, self.recompute_bounds, self.t)
 
 
-def SEAPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None, confidence=0.95, ips_w=None, ips_w2=None, ips_n=0, ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=None, t=0, **kw_args):
+def CompPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None, confidence=0.95, ips_w=None, ips_w2=None, ips_n=0, ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=None, t=0, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
-    if bl_type not in _SEA_POLICY_TYPE_CACHE:
-        _SEA_POLICY_TYPE_CACHE[bl_type] = _SEAPolicy(bl_type)
+    if bl_type not in _COMP_POLICY_TYPE_CACHE:
+        _COMP_POLICY_TYPE_CACHE[bl_type] = _CompPolicy(bl_type)
     # history = (
     #     GrowingArray(dtype=numba.int32),
     #     GrowingArray(dtype=numba.int32),
@@ -247,7 +247,7 @@ def SEAPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None, confidence=0
     ips_w = np.zeros((n, k)) if ips_w is None else ips_w
     ips_w2 = np.zeros((n, k)) if ips_w2 is None else ips_w2
     recompute_bounds = np.array([1], dtype=np.int32) if recompute_bounds is None else recompute_bounds
-    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, n, lr, l2, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds, t)
+    out = _COMP_POLICY_TYPE_CACHE[bl_type](k, d, n, lr, l2, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds, t)
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)

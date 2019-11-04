@@ -1,12 +1,14 @@
 from experiments.ranking.policies.online import OnlinePolicy
 from experiments.ranking.policies.ips import IPSPolicy
 from experiments.ranking.policies.sea import SEAPolicy
+from experiments.ranking.policies.comp import CompPolicy
 
 
 _STRATEGY_MAP = {
     'online': lambda d, args: OnlinePolicy(d, args['lr'], args['w']),
     'ips': lambda d, args: IPSPolicy(d, args['lr'], args['baseline'], args['eta'], args['cap'], args['w']),
-    'sea': lambda d, args: SEAPolicy(d, args['pairs'], args['lr'], args['baseline'], args['eta'], args['cap'], args['w'])
+    'sea': lambda d, args: SEAPolicy(d, args['pairs'], args['lr'], args['baseline'], args['eta'], args['cap'], args['w']),
+    'comp': lambda d, args: CompPolicy(d, args['pairs'], args['lr'], args['baseline'], args['eta'], args['cap'], args['w'])
 }
 
 def create_policy(strategy, d, **args):
