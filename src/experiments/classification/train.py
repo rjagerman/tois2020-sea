@@ -215,8 +215,8 @@ async def build_policy(config, data, points, seed):
         args['recompute_bounds'] = np.copy(points)
     if not config.cold:
         args['w'] = np.copy(baseline.w)
-    if not config.cold and config.strategy == 'boltzmann' and args['tau'] == 1.0:
-        args['tau'] = baseline.tau
+    # if not config.cold and config.strategy == 'boltzmann' and args['tau'] == 1.0:
+    #     args['tau'] = baseline.tau
     return create_policy(**args)
 
 
