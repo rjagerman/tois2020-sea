@@ -103,7 +103,7 @@ def main():
     fig.savefig(f"plots/{args.output}.pdf")
 
 
-@task(result_fn=sqlite_result(".cache/results.sqlite"))
+@task(result_fn=sqlite_result(".cache/results.sqlite", as_cache=False))
 async def run_experiment(config, data, repeats, iterations, evaluations, eval_scale, seed_base=4200, vali=0.0):
 
     # points to evaluate at
