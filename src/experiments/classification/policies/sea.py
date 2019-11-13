@@ -180,7 +180,9 @@ def __deepcopy(self):
                     np.copy(self.ips_w), np.copy(self.ips_w2), self.ips_n, self.ucb_baseline, self.lcb_w, self.recompute_bounds)
 
 
-def SEAPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None, confidence=0.95, ips_w=None, ips_w2=None, ips_n=0, ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=0, **kw_args):
+def SEAPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None,
+              confidence=0.95, ips_w=None, ips_w2=None, ips_n=0,
+              ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=0, **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
     if bl_type not in _SEA_POLICY_TYPE_CACHE:
