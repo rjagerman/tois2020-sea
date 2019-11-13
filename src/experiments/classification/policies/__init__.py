@@ -16,6 +16,7 @@ _STRATEGY_MAP = {
     'ucb': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], args['w'], draw_type=_TYPE_UCB),
     'thompson': lambda k, d, args: StatisticalPolicy(k, d, args['l2'], args['alpha'], args['w'], draw_type=_TYPE_THOMPSON),
     'sea': lambda k, d, args: SEAPolicy(k, d, args['n'], args['baseline'], args['lr'], args['l2'], args['cap'], args['w'], args['confidence']),
+    'meancomp': lambda k, d, args: SEAPolicy(k, d, args['n'], args['baseline'], args['lr'], args['l2'], args['cap'], args['w'], 0.0),
 }
 
 def create_policy(strategy, k, d, **args):

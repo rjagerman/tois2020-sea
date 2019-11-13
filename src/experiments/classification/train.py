@@ -40,6 +40,7 @@ def main():
     parser.add_argument("--tau", type=float, default=1.0)
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--cap", type=float, default=0.1)
+    parser.add_argument("--confidence", type=float, default=0.95)
     parser.add_argument("--label", type=str, default=None)
 
     # Read experiment configuration
