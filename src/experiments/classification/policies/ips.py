@@ -25,7 +25,7 @@ def _IPSPolicy(bl_type):
             self.cap = cap
             self.baseline = baseline
             self.w = w
-        
+
         def update(self, dataset, index, a, r):
             x, _ = dataset.get(index)
             p = max(self.cap, self.probability(x, a))
@@ -45,14 +45,14 @@ def _IPSPolicy(bl_type):
             #     col = x.indices[i]
             #     val = x.data[i]
             #     self.w[col, a] -= self.lr * val * g[a] * (1.0 - 2.0 * r) * ips
-        
+
         def draw(self, x):
             return self.baseline.draw(x)
-        
+
         def max(self, x):
             s = x.dot(self.w)
             return argmax(s)
-        
+
         def probability(self, x, a):
             return self.baseline.probability(x, a)
 

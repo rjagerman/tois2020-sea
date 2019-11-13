@@ -40,7 +40,7 @@ def main():
             for conf in configs
         ]
     results = [r.result for r in results]
-    
+
     for result in results:
         best = np.array([run['best'] for run in result['performance']])
         policy = np.array([run['policy'] for run in result['performance']])

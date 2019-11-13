@@ -17,7 +17,7 @@ class _GreedyPolicy:
         self.lr = lr
         self.l2 = l2
         self.w = w
-    
+
     def update(self, dataset, index, a, r):
         x, _ = dataset.get(index)
         s = x.dot(self.w[:, a])
@@ -26,13 +26,13 @@ class _GreedyPolicy:
             col = x.indices[i]
             val = x.data[i]
             self.w[col, a] -= self.lr * (val * loss + self.l2 * self.w[col, a])
-    
+
     def draw(self, x):
         return self.max(x)
-    
+
     def max(self, x):
         return argmax(x.dot(self.w))
-    
+
     def probability(self, x, a):
         s = x.dot(self.w)
         m = np.max(s)

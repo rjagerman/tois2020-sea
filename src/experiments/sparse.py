@@ -49,7 +49,7 @@ class _SparseMatrix:
         self.indptr = np.copy(_indptr.array)
         self.nnz = _nnz
         self.shape = matrix.shape
-    
+
     def to_dense(self, transpose=False):
         shape = (self.shape[0], self.shape[1])
         if transpose:
@@ -192,7 +192,7 @@ class _SparseVectorList:
         self.data.append(sv.data)
         self.indices.append(sv.indices)
         self.nnzs.append(sv.nnz)
-    
+
     def get(self, index):
         return _SparseVector(
             self.data.get(index),
@@ -200,7 +200,7 @@ class _SparseVectorList:
             self.nnzs.get(index),
             self.shape
         )
-    
+
     def clear(self):
         self.data.clear(1)
         self.indices.clear(1)

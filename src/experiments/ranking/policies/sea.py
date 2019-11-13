@@ -118,7 +118,7 @@ def _SEAPolicy(bl_type):
                         new_max = max(new_max, new_sorted[i] * self.ips_w[index])
                         baseline_max = max(baseline_max, baseline_sorted[i] * self.ips_w[index])
                     index += 1
-            
+
             new_mean = new_sum_mean / self.ips_n
             baseline_mean = baseline_sum_mean / self.ips_n
             new_var = (new_sum_var / self.ips_n) - (new_mean ** 2)
@@ -154,7 +154,7 @@ def _SEAPolicy(bl_type):
             #         xs_new[count] = -new_s[xc] / propensity
             #         xs_baseline[count] = -baseline_s[xc] / propensity
             #         count += 1
-            
+
             # self.lcb_w = np.mean(xs_new) - mpeb_bound(self.confidence, xs_new)
             # self.ucb_baseline = np.mean(xs_baseline) + mpeb_bound(self.confidence, xs_baseline)
             pass
@@ -165,7 +165,7 @@ def _SEAPolicy(bl_type):
         def max(self, x):
             s = np.dot(x, self.w)
             return argsort(-s)
-        
+
     return __SEAPolicy
 
 

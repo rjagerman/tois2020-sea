@@ -60,7 +60,7 @@ def _SEAPolicy(bl_type):
             self.ucb_baseline = ucb_baseline
             self.lcb_w = lcb_w
             self.recompute_bounds = recompute_bounds
-        
+
         def update(self, dataset, index, a, r):
             x, _ = dataset.get(index)
             p = max(self.cap, self.probability(x, a))
@@ -81,7 +81,7 @@ def _SEAPolicy(bl_type):
                 self._recompute_bounds(dataset)
                 self._update_baseline()
                 self.recompute_bounds = 0
-            
+
         def _record_history(self, index, a, r, p):
             # self.history[0].append(index)
             # self.history[1].append(a)
@@ -90,12 +90,12 @@ def _SEAPolicy(bl_type):
             self.ips_w[index, a] += r / p
             self.ips_w2[index, a] += (r / p) ** 2
             self.ips_n += 1
-        
+
         def _update_baseline(self):
             if self.lcb_w > self.ucb_baseline:
                 # replace baseline with a deepcopy of learned model
                 # e.g.  `with objmode(y='intp[:]'):`
-                # 
+                #
                 # to support this we should supported weighted updates
                 # and make learning of the new policy as a separate policy
                 self.baseline.w = np.copy(self.w)
@@ -139,23 +139,23 @@ def _SEAPolicy(bl_type):
             #     r = self.history[2].get(i)
             #     p = self.history[3].get(i)
             #     x, _ = dataset.get(index)
-            
+
             #     s = x.dot(self.w)
             #     sa = 1.0 * (argmax(s) == a)
             #     new_p = sa * (1 - 0.05) + 0.05 * (1.0 / self.k)
 
             #     est_new = new_p * r / p
             #     est_baseline = self.baseline.probability(x, a) * r / p
-            
+
             #     x_new[i] = est_new
             #     x_baseline[i] = est_baseline
-            
+
             # self.ucb_baseline = np.mean(x_baseline) + self._mpeb_bound(x_baseline)
             # self.lcb_w = np.mean(x_new) - self._mpeb_bound(x_new)
 
         def draw(self, x):
             return self.baseline.draw(x)
-        
+
         def max(self, x):
             s = x.dot(self.w)
             # log_p = log_softmax(s)
@@ -163,7 +163,7 @@ def _SEAPolicy(bl_type):
             # r = np.log(-np.log(u)) - log_p
             # return argmax(-r)
             return argmax(s)
-        
+
         def probability(self, x, a):
             return self.baseline.probability(x, a)
 

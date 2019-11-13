@@ -37,7 +37,7 @@ def main():
             for conf in configs
         ]
     results = [r.result for r in results]
-    
+
     for config, result in sorted(zip(configs, results), key=lambda e: e[1]['conf'][0], reverse=True):
         logging.info(f"{args.dataset} baseline: {result['mean']:.5f} +/- {result['std']:.5f} => {result['conf'][0]:.5f}  (lr = {result['lr']})")
 

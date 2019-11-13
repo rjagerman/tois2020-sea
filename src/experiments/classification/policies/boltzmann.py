@@ -20,7 +20,7 @@ class _BoltzmannPolicy:
         self.l2 = l2
         self.tau = tau
         self.w = w
-    
+
     def update(self, dataset, index, a, r):
         x, _ = dataset.get(index)
         s = x.dot(self.w)
@@ -32,18 +32,18 @@ class _BoltzmannPolicy:
             for aprime in range(self.k):
                 kronecker = 1.0 if aprime == a else 0.0
                 self.w[col, aprime] -= self.lr * ((val / self.tau) * loss * sm[aprime] * (kronecker - sm[a]) + self.l2 * self.w[col, aprime])
-    
+
     def draw(self, x):
         s = x.dot(self.w)
         log_p = log_softmax(s / self.tau)
         u = np.random.uniform(0.0, 1.0, s.shape)
         r = np.log(-np.log(u)) - log_p
         return argmax(-r)
-    
+
     def max(self, x):
         s = x.dot(self.w)
         return argmax(s)
-    
+
     def probability(self, x, a):
         s = x.dot(self.w)
         return softmax(s / self.tau)[a]

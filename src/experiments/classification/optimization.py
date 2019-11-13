@@ -51,7 +51,7 @@ def optimize(train, train_indices, vali_indices, policy):
             r_vali = reward(x_vali, y_vali, a_vali)
         else:
             r_vali = r
-        
+
         vali_regret += (1.0 - r_vali)
 
         policy.update(train, train_indices[i], a, r)

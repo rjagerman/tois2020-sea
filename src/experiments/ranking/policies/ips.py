@@ -46,7 +46,7 @@ def _IPSPolicy(bl_type):
         def max(self, x):
             s = np.dot(x, self.w)
             return argsort(-s)
-        
+
     return __IPSPolicy
 
 

@@ -51,13 +51,13 @@ def main():
     with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
         results = [run_experiment(config, args.dataset, args.repeats, args.iterations, args.evaluations, args.eval_scale) for config in configs]
     results = [r.result for r in results]
-    
+
     # Write json results
     mkdir_if_not_exists(f"results/{args.output}.json")
     with open(f"results/{args.output}.json", "wt") as f:
         js_results = [{"result": result, "args": vars(config)} for result, config in zip(results, configs)]
         json.dump(js_results, f, cls=NumpyEncoder)
-    
+
     # Print results
     for metric in ['learned', 'deploy', 'regret']:
         bound = 1 if metric == 'regret' else 0
@@ -79,7 +79,7 @@ def main():
         ax.fill_between(x, y - y_std, y + y_std, alpha=0.35)
     if args.eval_scale == 'log':
         ax.set_xscale('symlog')
-        locmin = matplotlib.ticker.SymmetricalLogLocator(base=10.0, subs=np.linspace(1.0, 10.0, 10), linthresh=1.0) 
+        locmin = matplotlib.ticker.SymmetricalLogLocator(base=10.0, subs=np.linspace(1.0, 10.0, 10), linthresh=1.0)
         ax.xaxis.set_minor_locator(locmin)
         ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
         scalar_formatter = matplotlib.ticker.ScalarFormatter()
@@ -104,7 +104,7 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
 
     # points to evaluate at
     points = get_evaluation_points(iterations, evaluations, eval_scale)
-    
+
     # Evaluate at all points and all seeds
     results = []
     for seed in range(seed_base, seed_base + repeats):
@@ -132,7 +132,7 @@ async def run_experiment(config, data, repeats, iterations, evaluations, eval_sc
         for k in results.keys()
     }
     out["x"] = points
-    
+
     # Return results
     return out
 
@@ -189,7 +189,7 @@ async def classification_run(config, data, points, seed, vali=0.0):
         else:
             out['deploy'][i], out['learned'][i] = evaluate(train, policy, indices_shuffle[np.arange(int(vali * train.n), train.n)])
         log_progress(i, points, data, out, policy, config, seed)
-    
+
     return out
 
 

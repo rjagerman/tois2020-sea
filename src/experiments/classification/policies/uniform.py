@@ -17,7 +17,7 @@ class _UniformPolicy:
         self.lr = lr
         self.l2 = l2
         self.w = w
-    
+
     def update(self, dataset, index, a, r):
         x, _ = dataset.get(index)
         s = x.dot(self.w[:, a])
@@ -26,14 +26,14 @@ class _UniformPolicy:
             col = x.indices[i]
             val = x.data[i]
             self.w[col, a] -= self.lr * (val * loss + self.l2 * self.w[col, a])
-    
+
     def draw(self, x):
         return np.random.randint(self.k)
-    
+
     def max(self, x):
         s = x.dot(self.w)
         return argmax(s)
-    
+
     def probability(self, x, a):
         return 1.0 / float(self.k)
 

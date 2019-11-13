@@ -80,7 +80,7 @@ class HyperOptimizer():
         if not self.maximize:
             best_score = -best_score
         return best_params, best_score
-    
+
     @task(use_cache=False)
     async def _next_run(self, index):
         while not self._can_run.acquire(blocking=False):
@@ -138,7 +138,7 @@ class _LogGridSolver():
         ]
         self.best = self.grid_options[0]
         self._update_lock = Lock()
-    
+
     def get_next_x(self):
         x = self.grid_options[self._t]
         self._t = (self._t + 1) % len(self.grid_options)
@@ -152,7 +152,7 @@ class _LogGridSolver():
     def get_best_function_eval(self):
         return self.best.x, self.best._v, self.best
 
-        
+
 class GridPoint():
     def __init__(self, x, solver):
         self.x = x

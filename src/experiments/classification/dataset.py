@@ -30,7 +30,7 @@ class _ClassificationDataset:
         self.n = n
         self.d = d
         self.k = k
-    
+
     def get(self, index):
         return _specialized_get(index, self.xs, self.ys)
 

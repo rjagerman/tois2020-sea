@@ -93,7 +93,7 @@ async def run_experiment(config, data, behavior, repeats, iterations, evaluation
 
     # points to evaluate at
     points = get_evaluation_points(iterations, evaluations, eval_scale)
-    
+
     # Evaluate at all points and all seeds
     results = []
     for seed in range(seed_base, seed_base + repeats):
@@ -121,7 +121,7 @@ async def run_experiment(config, data, behavior, repeats, iterations, evaluation
         for k in results.keys()
     }
     out["x"] = points
-    
+
     # Return results
     return out
 

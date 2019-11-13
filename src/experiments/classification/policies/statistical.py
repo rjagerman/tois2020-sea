@@ -39,7 +39,7 @@ class _StatisticalPolicy:
         self.cho = cho
         self.recompute = recompute
         self.draw_type = draw_type
-    
+
     def update(self, train, index, a, r, update_w=True):
         x, _ = train.get(index)
         xd = x.to_dense()
@@ -57,7 +57,7 @@ class _StatisticalPolicy:
     def update_w(self, a):
         self.A_inv[a, :, :] = np.linalg.inv(self.A[a, :, :])
         self.w[:, a] = np.dot(self.A_inv[a, :, :], self.b[a, :])
-    
+
     def draw(self, x):
         xd = x.to_dense()
         if self.draw_type == TYPE_UCB:
@@ -66,7 +66,7 @@ class _StatisticalPolicy:
             return self._draw_thompson(xd)
         else:
             raise ValueError("Unknown draw type")
-        
+
     def _bound(self, x):
         x2 = x.reshape((x.shape[0], 1))
         d = np.empty(self.k)
@@ -79,7 +79,7 @@ class _StatisticalPolicy:
             if self.recompute[i]:
                 self.cho[i,:,:] = np.linalg.cholesky(self.A_inv[i,:,:])
                 self.recompute[i] = False
-    
+
     def _draw_ucb(self, x):
         s = np.dot(x, self.w) + self.alpha * self._bound(x)
         s = np.minimum(1.0, s)
@@ -106,7 +106,7 @@ class _StatisticalPolicy:
 
     def max(self, x):
         return argmax(x.dot(self.w))
-    
+
     def probability(self, x, a):
         xd = x.to_dense()
         if self.draw_type == TYPE_UCB:
@@ -115,7 +115,7 @@ class _StatisticalPolicy:
             return self._probability_thompson(xd)[a]
         else:
             raise ValueError("Unknown draw type")
-    
+
     def _probability_ucb(self, x):
         out = np.zeros(self.k)
         out[self._draw_ucb(x)] = 1.0
