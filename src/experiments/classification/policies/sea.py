@@ -171,13 +171,16 @@ def __setstate(self, state):
 
 
 def __reduce(self):
-    return (SEAPolicy, (self.k, self.d, self.n, self.baseline), self.__getstate__())
+    return (SEAPolicy, (self.k, self.d, self.n, self.baseline),
+            self.__getstate__())
 
 
 def __deepcopy(self):
-    return SEAPolicy(self.k, self.d, self.n, self.baseline.__deepcopy__(), self.lr,
-                     self.l2, self.cap, np.copy(self.w), self.confidence,
-                    np.copy(self.ips_w), np.copy(self.ips_w2), self.ips_n, self.ucb_baseline, self.lcb_w, self.recompute_bounds)
+    return SEAPolicy(self.k, self.d, self.n, self.baseline.__deepcopy__(),
+                     self.lr, self.l2, self.cap, np.copy(self.w),
+                     self.confidence, np.copy(self.ips_w),
+                     np.copy(self.ips_w2), self.ips_n, self.ucb_baseline,
+                     self.lcb_w, self.recompute_bounds)
 
 
 def SEAPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None,
@@ -189,7 +192,10 @@ def SEAPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None,
         _SEA_POLICY_TYPE_CACHE[bl_type] = _SEAPolicy(bl_type)
     ips_w = np.zeros((n, k)) if ips_w is None else ips_w
     ips_w2 = np.zeros((n, k)) if ips_w2 is None else ips_w2
-    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, n, lr, l2, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds)
+    out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, n, lr, l2, cap, baseline, w,
+                                          confidence, ips_w, ips_w2, ips_n,
+                                          ucb_baseline, lcb_w,
+                                          recompute_bounds)
     setattr(out.__class__, '__getstate__', __getstate)
     setattr(out.__class__, '__setstate__', __setstate)
     setattr(out.__class__, '__reduce__', __reduce)
