@@ -1,6 +1,7 @@
 from experiments.ranking.policies.online import OnlinePolicy
 from experiments.ranking.policies.ips import IPSPolicy
 from experiments.ranking.policies.sea import SEAPolicy
+from experiments.ranking.policies.dueling_bandits import DuelingBanditPolicy
 
 
 _STRATEGY_MAP = {
