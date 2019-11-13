@@ -116,8 +116,14 @@ def _SEAPolicy(bl_type):
             new_var = (new_sum_var / self.ips_n) - (new_mean ** 2)
             baseline_var = (baseline_sum_var / self.ips_n) - (baseline_mean ** 2)
 
-            self.ucb_baseline = baseline_mean + mpeb_bound(self.ips_n, self.confidence, baseline_var, baseline_max)
-            self.lcb_w = new_mean - mpeb_bound(self.ips_n, self.confidence, new_var, new_max)
+            if self.confidence != 0.0:
+                self.ucb_baseline = baseline_mean + mpeb_bound(
+                    self.ips_n, self.confidence, baseline_var, baseline_max)
+                self.lcb_w = new_mean - mpeb_bound(
+                    self.ips_n, self.confidence, new_var, new_max)
+            else:
+                self.ucb_baseline = baseline_mean
+                self.lcb_w = new_mean
 
         def draw(self, x):
             return self.baseline.draw(x)
