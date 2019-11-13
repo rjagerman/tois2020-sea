@@ -32,18 +32,14 @@ def _SEAPolicy(bl_type):
         ('ips_w', numba.float64[:,:]),
         ('ips_w2', numba.float64[:,:]),
         ('ips_n', numba.int64),
-        # ('history', numba.types.Tuple([
-        #    numba.typeof(GrowingArray(dtype=numba.int32)),   # vectors
-        #    numba.typeof(GrowingArray(dtype=numba.int32)),   # actions
-        #    numba.typeof(GrowingArray(dtype=numba.float64)), # rewards
-        #    numba.typeof(GrowingArray(dtype=numba.float64))  # propensities
-        # ])),
         ('ucb_baseline', numba.float64),
         ('lcb_w', numba.float64),
         ('recompute_bounds', numba.int32)
     ])
     class SEAPolicy:
-        def __init__(self, k, d, n, lr, l2, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds):
+        def __init__(self, k, d, n, lr, l2, cap, baseline, w, confidence,
+                     ips_w, ips_w2, ips_n, ucb_baseline, lcb_w,
+                     recompute_bounds):
             self.k = k
             self.d = d
             self.n = n
@@ -53,7 +49,6 @@ def _SEAPolicy(bl_type):
             self.baseline = baseline
             self.w = w
             self.confidence = confidence
-            # self.history = history
             self.ips_w = ips_w
             self.ips_w2 = ips_w2
             self.ips_n = ips_n
@@ -66,7 +61,6 @@ def _SEAPolicy(bl_type):
             p = max(self.cap, self.probability(x, a))
             s = x.dot(self.w)
             sm = softmax(s / self.baseline.tau)
-            #sma = softmax(s / self.baseline.tau)[a]
             g = grad_softmax(s)
             loss = ((1.0 -r) - 0.8) / p # lambda-ips loss
             for i in range(x.nnz):
@@ -83,10 +77,6 @@ def _SEAPolicy(bl_type):
                 self.recompute_bounds = 0
 
         def _record_history(self, index, a, r, p):
-            # self.history[0].append(index)
-            # self.history[1].append(a)
-            # self.history[2].append(r)
-            # self.history[3].append(p)
             self.ips_w[index, a] += r / p
             self.ips_w2[index, a] += (r / p) ** 2
             self.ips_n += 1
@@ -129,39 +119,11 @@ def _SEAPolicy(bl_type):
             self.ucb_baseline = baseline_mean + mpeb_bound(self.ips_n, self.confidence, baseline_var, baseline_max)
             self.lcb_w = new_mean - mpeb_bound(self.ips_n, self.confidence, new_var, new_max)
 
-            # n = self.history[1].size
-
-            # x_new = np.zeros(n)
-            # x_baseline = np.zeros(n)
-            # for i in range(n):
-            #     index = self.history[0].get(i)
-            #     a = self.history[1].get(i)
-            #     r = self.history[2].get(i)
-            #     p = self.history[3].get(i)
-            #     x, _ = dataset.get(index)
-
-            #     s = x.dot(self.w)
-            #     sa = 1.0 * (argmax(s) == a)
-            #     new_p = sa * (1 - 0.05) + 0.05 * (1.0 / self.k)
-
-            #     est_new = new_p * r / p
-            #     est_baseline = self.baseline.probability(x, a) * r / p
-
-            #     x_new[i] = est_new
-            #     x_baseline[i] = est_baseline
-
-            # self.ucb_baseline = np.mean(x_baseline) + self._mpeb_bound(x_baseline)
-            # self.lcb_w = np.mean(x_new) - self._mpeb_bound(x_new)
-
         def draw(self, x):
             return self.baseline.draw(x)
 
         def max(self, x):
             s = x.dot(self.w)
-            # log_p = log_softmax(s)
-            # u = np.random.uniform(0.0, 1.0, s.shape)
-            # r = np.log(-np.log(u)) - log_p
-            # return argmax(-r)
             return argmax(s)
 
         def probability(self, x, a):
@@ -181,12 +143,6 @@ def __getstate(self):
         'baseline': self.baseline,
         'w': self.w,
         'confidence': self.confidence,
-        # 'history': (
-        #     self.history[0],
-        #     self.history[1],
-        #     self.history[2],
-        #     self.history[3]
-        # ),
         'ips_w': self.ips_w,
         'ips_w2': self.ips_w2,
         'ips_n': self.ips_n,
@@ -206,7 +162,6 @@ def __setstate(self, state):
     self.baseline = state['baseline']
     self.w = state['w']
     self.confidence = state['confidence']
-    #self.history = state['history']
     self.ips_w = state['ips_w']
     self.ips_w2 = state['ips_w2']
     self.ips_n = state['ips_n']
@@ -221,12 +176,7 @@ def __reduce(self):
 
 def __deepcopy(self):
     return SEAPolicy(self.k, self.d, self.n, self.baseline.__deepcopy__(), self.lr,
-                     self.l2, self.cap, np.copy(self.w), self.confidence, #(
-                    #      self.history[0].__deepcopy__(),
-                    #      self.history[1].__deepcopy__(),
-                    #      self.history[2].__deepcopy__(),
-                    #      self.history[3].__deepcopy__()
-                    #  ),
+                     self.l2, self.cap, np.copy(self.w), self.confidence,
                     np.copy(self.ips_w), np.copy(self.ips_w2), self.ips_n, self.ucb_baseline, self.lcb_w, self.recompute_bounds)
 
 
@@ -235,12 +185,6 @@ def SEAPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None, confidence=0
     bl_type = numba.typeof(baseline)
     if bl_type not in _SEA_POLICY_TYPE_CACHE:
         _SEA_POLICY_TYPE_CACHE[bl_type] = _SEAPolicy(bl_type)
-    # history = (
-    #     GrowingArray(dtype=numba.int32),
-    #     GrowingArray(dtype=numba.int32),
-    #     GrowingArray(dtype=numba.float64),
-    #     GrowingArray(dtype=numba.float64)
-    # ) if history is None else history
     ips_w = np.zeros((n, k)) if ips_w is None else ips_w
     ips_w2 = np.zeros((n, k)) if ips_w2 is None else ips_w2
     out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, n, lr, l2, cap, baseline, w, confidence, ips_w, ips_w2, ips_n, ucb_baseline, lcb_w, recompute_bounds)
