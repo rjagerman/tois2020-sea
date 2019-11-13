@@ -40,6 +40,7 @@ def main():
     parser.add_argument("--strategy", type=str, default='online')
     parser.add_argument("--cold", action='store_true')
     parser.add_argument("--lr", type=float, default=0.01)
+    parser.add_argument("--delta", type=float, default=0.01)
     parser.add_argument("--cap", type=float, default=0.01)
     parser.add_argument("--confidence", type=float, default=0.95)
     parser.add_argument("--label", type=str, default=None)
