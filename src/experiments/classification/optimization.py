@@ -36,13 +36,16 @@ def optimize_supervised_ridge(train, indices, policy, epochs=1):
 
 
 @numba.njit(nogil=True)
-def optimize(train, train_indices, vali_indices, policy):
+def optimize(train, train_indices, vali_indices, policy, pos_prob=1.0,
+             neg_prob=0.0):
     train_regret = 0.0
     vali_regret = 0.0
     for i in range(len(train_indices)):
         x, y = train.get(train_indices[i])
         a = policy.draw(x)
-        r = reward(x, y, a)
+        p = pos_prob if reward(x, y, a) == 1.0 else neg_prob
+        r = np.random.binomial(1, p)
+
         train_regret += (1.0 - r)
 
         if vali_indices[i] != train_indices[i]:

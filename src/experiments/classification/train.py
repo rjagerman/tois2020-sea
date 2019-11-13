@@ -41,6 +41,8 @@ def main():
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--cap", type=float, default=0.1)
     parser.add_argument("--confidence", type=float, default=0.95)
+    parser.add_argument("--pos_prob", type=float, default=1.0)
+    parser.add_argument("--neg_prob", type=float, default=0.0)
     parser.add_argument("--label", type=str, default=None)
 
     # Read experiment configuration
@@ -182,7 +184,10 @@ async def classification_run(config, data, points, seed, vali=0.0):
     for i in range(1, len(points)):
         start = points[i - 1]
         end = points[i]
-        train_regret, test_regret = optimize(train, np.copy(train_indices[start:end]), np.copy(vali_indices[start:end]), policy)
+        train_regret, test_regret = optimize(
+            train, np.copy(train_indices[start:end]),
+            np.copy(vali_indices[start:end]), policy,
+            pos_prob=config.pos_prob, neg_prob=config.neg_prob)
         out['regret'][i] = out['regret'][i - 1] + train_regret
         out['test_regret'][i] = out['test_regret'][i - 1] + test_regret
         if vali == 0.0:
