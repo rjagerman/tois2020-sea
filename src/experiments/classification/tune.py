@@ -20,7 +20,7 @@ def main():
     cli_parser = ArgumentParser()
     cli_parser.add_argument("-c", "--config", type=str, required=True)
     cli_parser.add_argument("-d", "--dataset", type=str, required=True)
-    cli_parser.add_argument("-r", "--repeats", type=int, default=15)
+    cli_parser.add_argument("-r", "--repeats", type=int, default=5)
     cli_parser.add_argument("-p", "--parallel", type=int, default=1)
     cli_parser.add_argument("--cache", type=str, default="cache")
     cli_parser.add_argument("--iterations", type=int, default=1000000)
