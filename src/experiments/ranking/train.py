@@ -40,6 +40,7 @@ def main():
     parser.add_argument("--strategy", type=str, default='online')
     parser.add_argument("--cold", action='store_true')
     parser.add_argument("--lr", type=float, default=0.01)
+    parser.add_argument("--lr_decay", type=float, default=1.0)
     parser.add_argument("--delta", type=float, default=0.01)
     parser.add_argument("--cap", type=float, default=0.01)
     parser.add_argument("--confidence", type=float, default=0.95)
@@ -48,7 +49,7 @@ def main():
     # Read experiment configuration
     with open(args.config, 'rt') as f:
         lines = f.readlines()
-        configs = [parser.parse_args(line.strip().split(" ")) for line in lines]
+        configs = [parser.parse_args(line.strip().split(" ")) for line in lines if not line.startswith("#")]
 
     # Run experiments in task executor
     with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):
