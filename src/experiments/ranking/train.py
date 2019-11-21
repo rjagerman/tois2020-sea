@@ -31,7 +31,7 @@ def main():
     cli_parser.add_argument("-p", "--parallel", type=int, default=1)
     cli_parser.add_argument("-o", "--output", type=str, required=True)
     cli_parser.add_argument("--cache", type=str, default="cache")
-    cli_parser.add_argument("--iterations", type=int, default=1000000)
+    cli_parser.add_argument("--iterations", type=int, default=10000000)
     cli_parser.add_argument("--evaluations", type=int, default=50)
     cli_parser.add_argument("--eval_scale", choices=('lin', 'log'), default='log')
     args = cli_parser.parse_args()
@@ -91,7 +91,7 @@ def main():
 
 
 @task(use_cache=True)
-async def run_experiment(config, data, behavior, repeats, iterations, evaluations, eval_scale, seed_base=4200):
+async def run_experiment(config, data, behavior, repeats, iterations, evaluations, eval_scale, seed_base=4200, vali=None):
 
     # points to evaluate at
     points = get_evaluation_points(iterations, evaluations, eval_scale)
@@ -99,7 +99,7 @@ async def run_experiment(config, data, behavior, repeats, iterations, evaluation
     # Evaluate at all points and all seeds
     results = []
     for seed in range(seed_base, seed_base + repeats):
-        results.append(ranking_run(config, data, behavior, points, seed))
+        results.append(ranking_run(config, data, behavior, points, seed, vali))
 
     # Await results to finish computing
     final_results = [await r for r in results]
@@ -129,7 +129,7 @@ async def run_experiment(config, data, behavior, repeats, iterations, evaluation
 
 
 @task(use_cache=True)
-async def ranking_run(config, data, behavior, points, seed):
+async def ranking_run(config, data, behavior, points, seed, vali=None):
 
     # Load train, test and policy
     train = load_train(data, seed)
