@@ -75,7 +75,8 @@ def _SEAPolicy(bl_type):
             if self.ips_n > 1 and (self.recompute_bounds < 10 or
                 (self.recompute_bounds < 100 and self.recompute_bounds % 10 == 0) or
                 (self.recompute_bounds < 1000 and self.recompute_bounds % 100 == 0) or
-                (self.recompute_bounds % 1000 == 0)):
+                (self.recompute_bounds < 100000 and self.recompute_bounds % 1000 == 0) or
+                (self.recompute_bounds % 10000 == 0)):
                 self._recompute_bounds(dataset)
                 self._update_baseline()
                 #self.recompute_bounds = 0
