@@ -12,7 +12,7 @@ from experiments.classification.policies import create_policy
 from experiments.classification.optimization import optimize
 from experiments.classification.evaluation import evaluate
 from experiments.classification.baseline import best_baseline, statistical_baseline
-from experiments.classification.dataset import load_train, load_test, load_vali
+from experiments.classification.dataset import load_train, load_test
 from experiments.util import rng_seed, get_evaluation_points, mkdir_if_not_exists, NumpyEncoder
 
 
@@ -48,7 +48,7 @@ def main():
     # Read experiment configuration
     with open(args.config, 'rt') as f:
         lines = f.readlines()
-        configs = [parser.parse_args(line.strip().split(" ")) for line in lines]
+        configs = [parser.parse_args(line.strip().split(" ")) for line in lines if not line.startswith("#")]
 
     # Run experiments in task executor
     with TaskExecutor(max_workers=args.parallel, memory=Memory(args.cache, compress=6)):

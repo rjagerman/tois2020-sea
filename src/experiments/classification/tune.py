@@ -137,7 +137,7 @@ async def search_around(n, default_args, config, dataset, repeats, iterations):
 @task(use_cache=False)
 async def target_fn(config, data, repeats, iterations, seed_base):
     output = await run_experiment(config, data, repeats, iterations, 2,
-                                  'lin', seed_base, vali=0.1)
+                                  'lin', seed_base, vali=0.0)
     if config.strategy in ['ips']:
         return -output['learned']['conf'][0][-1]
     return output['test_regret']['conf'][1][-1]

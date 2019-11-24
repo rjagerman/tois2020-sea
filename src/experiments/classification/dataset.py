@@ -62,7 +62,7 @@ def __setstate(self, state):
 
 
 def __reduce(self):
-    return (_ClassificationDataset, (from_scipy(csr_matrix((0,0))), np.empty(0), 0, 0, 0), self.__getstate__())
+    return (ClassificationDataset, (self.xs, self.ys, self.n, self.d, self.k))
 
 
 @numba.generated_jit(nopython=True, nogil=True)
@@ -120,10 +120,11 @@ async def load_from_path(file_path, min_d=0, sample=1.0, seed=0,  sample_inverse
         ys = ys[indices]
     k = np.unique(ys).shape[0]
     n = xs.shape[0]
-    d = xs.shape[1]
+    d = max(min_d, xs.shape[1])
     xs = from_scipy(xs, min_d=min_d) #xs.todense().A
     ys.setflags(write=False)
-    return ClassificationDataset(xs, ys, n, d, k)
+    out = ClassificationDataset(xs, ys, n, d, k)
+    return out
 
 
 @task

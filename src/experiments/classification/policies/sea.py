@@ -7,6 +7,7 @@ from scipy.sparse import csr_matrix
 from rulpy.array import GrowingArray
 from rulpy.math import log_softmax, grad_softmax, softmax
 from llvmlite import binding
+from copy import deepcopy
 
 
 # The jitclass below exceeds the max-name-size of llvm, because of the way
@@ -71,15 +72,18 @@ def _SEAPolicy(bl_type):
                     self.w[col, aprime] -= self.lr * ((val / self.baseline.tau) * loss * sm[aprime] * (kronecker - sm[a]) + self.l2 * self.w[col, aprime])
             self._record_history(index, a, r, p)
             self.recompute_bounds += 1
-            if self.recompute_bounds >= 1000:
+            if self.ips_n > 1 and (self.recompute_bounds < 10 or
+                (self.recompute_bounds < 100 and self.recompute_bounds % 10 == 0) or
+                (self.recompute_bounds < 1000 and self.recompute_bounds % 100 == 0) or
+                (self.recompute_bounds % 1000 == 0)):
                 self._recompute_bounds(dataset)
                 self._update_baseline()
-                self.recompute_bounds = 0
 
         def _record_history(self, index, a, r, p):
             self.ips_w[index, a] += r / p
             self.ips_w2[index, a] += (r / p) ** 2
             self.ips_n += 1
+            # self.ips_nonzero.add(index)
 
         def _update_baseline(self):
             if self.lcb_w > self.ucb_baseline:
@@ -97,7 +101,7 @@ def _SEAPolicy(bl_type):
             baseline_sum_var = 0.0
             new_max = 0.0
             baseline_max = 0.0
-            for index in range(self.n):
+            for index in range(dataset.n):
                 for a in range(self.k):
                     if self.ips_w[index, a] != 0.0:
                         x, _ = dataset.get(index)
@@ -177,27 +181,54 @@ def __setstate(self, state):
 
 
 def __reduce(self):
-    return (SEAPolicy, (self.k, self.d, self.n, self.baseline),
-            self.__getstate__())
+    return (SEAPolicy, (self.k, self.d, self.n, self.baseline,
+                        self.lr, self.l2, self.cap, self.w, self.confidence,
+                        self.ips_w, self.ips_w2, self.ips_n,
+                        self.ucb_baseline, self.lcb_w, self.recompute_bounds))
 
 
 def __deepcopy(self):
-    return SEAPolicy(self.k, self.d, self.n, self.baseline.__deepcopy__(),
-                     self.lr, self.l2, self.cap, np.copy(self.w),
-                     self.confidence, np.copy(self.ips_w),
-                     np.copy(self.ips_w2), self.ips_n, self.ucb_baseline,
-                     self.lcb_w, self.recompute_bounds)
+    return SEAPolicy(
+        k=self.k,
+        d=self.d,
+        n=self.n,
+        baseline=self.baseline.__deepcopy__(),
+        lr=self.lr,
+        l2=self.l2,
+        cap=self.cap,
+        w=np.copy(self.w),
+        confidence=self.confidence,
+        ips_w=np.copy(self.ips_w),
+        ips_w2=np.copy(self.ips_w2),
+        ips_n=self.ips_n,
+        ucb_baseline=self.ucb_baseline,
+        lcb_w=self.lcb_w,
+        recompute_bounds=self.recompute_bounds)
 
 
-def SEAPolicy(k, d, n, baseline, lr=0.01, l2=0.0, cap=0.05, w=None,
-              confidence=0.95, ips_w=None, ips_w2=None, ips_n=0,
-              ucb_baseline=0.0, lcb_w=0.0, recompute_bounds=0, **kw_args):
+def SEAPolicy(k,
+              d,
+              n,
+              baseline,
+              lr=0.01,
+              l2=0.0,
+              cap=0.05,
+              w=None,
+              confidence=0.95,
+              ips_w=None,
+              ips_w2=None,
+              ips_n=0,
+              ucb_baseline=0.0,
+              lcb_w=0.0,
+              recompute_bounds=0,
+              **kw_args):
     w = init_weights(k, d, w)
     bl_type = numba.typeof(baseline)
     if bl_type not in _SEA_POLICY_TYPE_CACHE:
         _SEA_POLICY_TYPE_CACHE[bl_type] = _SEAPolicy(bl_type)
     ips_w = np.zeros((n, k)) if ips_w is None else ips_w
     ips_w2 = np.zeros((n, k)) if ips_w2 is None else ips_w2
+    #ips_nonzero = set(np.array([0], dtype=np.int64)) if ips_nonzero is None else ips_nonzero
     out = _SEA_POLICY_TYPE_CACHE[bl_type](k, d, n, lr, l2, cap, baseline, w,
                                           confidence, ips_w, ips_w2, ips_n,
                                           ucb_baseline, lcb_w,
