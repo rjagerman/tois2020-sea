@@ -5,3 +5,5 @@ scikit-learn
 matplotlib
 dlib
 scikit-optimize
+git+ssh://git@github.com/rjagerman/ltrpy.git#egg=ltrpy
+git+ssh://git@github.com/rjagerman/rulpy.git#egg=rulpy
