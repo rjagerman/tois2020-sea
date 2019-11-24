@@ -148,7 +148,8 @@ async def ranking_run(config, data, behavior, points, seed, vali=None):
     prng = rng_seed(seed)
 
     # Build policy
-    args = {'d': train.d, 'pairs': train.pairs, 'baseline': baseline.__deepcopy__()}
+    baseline = baseline.__deepcopy__()
+    args = {'d': train.d, 'pairs': train.pairs, 'baseline': baseline}
     args.update(vars(config))
     if behavior in ['perfect']:
         args['eta'] = 0.0
@@ -156,6 +157,7 @@ async def ranking_run(config, data, behavior, points, seed, vali=None):
         args['eta'] = 1.0
     if not config.cold:
         args['w'] = np.copy(baseline.w)
+
     policy = create_policy(**args)
 
     if hasattr(policy, 'ucb_baseline') and hasattr(policy, 'lcb_w'):

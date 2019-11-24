@@ -1,4 +1,4 @@
-from ltrpy.dataset import load_svmrank as load
+from ltrpy.dataset import load
 from rulpy.pipeline import task
 import logging
 import json
@@ -10,36 +10,23 @@ with open("conf/ranking/datasets.json", "rt") as f:
 
 
 @task(use_cache=True)
-async def load_from_path(path, filter_queries=False, sample=None, sample_inverse=False, seed=42):
-    logging.info(f"Loading ranking dataset from {path} (sample:{sample} inv:{sample_inverse}, seed:{seed})")
-    dataset = load(path, filter_queries=filter_queries, normalize=True,
-                   subsample=sample, subsample_inverse=sample_inverse,
-                   subsample_seed=seed)
+async def load_from_path(path, filter_queries=False):
+    logging.info(f"Loading ranking dataset from {path}")
+    dataset = load(path, filter_queries=filter_queries, normalize=True)
     return dataset
 
 
 @task
-async def load_train(dataset, seed=0, vali=None):
-    if vali is None:
-        seed = 0
+async def load_train(dataset, seed=0):
     info = datasets[dataset]
     path_prefix = f"Fold{1 + (seed % info['folds'])}" if info['has_folds'] else ""
     file_path = os.path.join(info['path'], path_prefix, 'train.txt')
-    return await load_from_path(file_path, filter_queries=False, sample=vali, sample_inverse=True, seed=seed)
+    return await load_from_path(file_path, filter_queries=False)
 
 
 @task
-async def load_test(dataset, seed=0, vali=None):
+async def load_test(dataset, seed=0):
     info = datasets[dataset]
     path_prefix = f"Fold{1 + (seed % info['folds'])}" if info['has_folds'] else ""
-    if vali is not None:
-        if info['has_vali']:
-            file_path = os.path.join(info['path'], path_prefix, 'vali.txt')
-        else:
-            file_path = os.path.join(info['path'], path_prefix, 'train.txt')
-            return await load_from_path(file_path, filter_queries=False,
-                                        sample=vali, sample_inverse=False,
-                                        seed=seed)
-    else:
-        file_path = os.path.join(info['path'], path_prefix, 'test.txt')
-    return await load_from_path(file_path, filter_queries=True, seed=0)
+    file_path = os.path.join(info['path'], path_prefix, 'test.txt')
+    return await load_from_path(file_path, filter_queries=True)
